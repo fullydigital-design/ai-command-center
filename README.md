@@ -18,16 +18,14 @@ Built for setups where you run your own stack and need a single interface to see
 
 <table>
 <tr>
-<td><img src="doc/scrennshot_1.png" width="100%"/><br/><sub>Command Center overview</sub></td>
-<td><img src="doc/scrennshot_2.png" width="100%"/><br/><sub>GPU Live Monitor</sub></td>
+<td><img src="doc/screenshot _01.png" width="100%"/><br/><sub>Command Center overview</sub></td>
+<td><img src="doc/screenshot _02.png" width="100%"/><br/><sub>GPU Live Monitor</sub></td>
 </tr>
 <tr>
-<td><img src="doc/scrennshot_3.png" width="100%"/><br/><sub>Training Jobs</sub></td>
-<td><img src="doc/scrennshot_4.png" width="100%"/><br/><sub>Community Hub</sub></td>
+<td><img src="doc/screenshot _03.png" width="100%"/><br/><sub>Training Jobs</sub></td>
+<td><img src="doc/screenshot _04.png" width="100%"/><br/><sub>Community Hub</sub></td>
 </tr>
 </table>
-
-<img src="doc/scrennshot_5.png" width="100%"/><br/><sub>Script Packages</sub>
 
 ---
 

@@ -15,12 +15,15 @@ src-tauri/binaries/*.exe
 # Environment
 .env
 
+# Internal / AI context files
+guidelines/
+CLAUDE.md
+
 # Temp/debug files
 _tmp_*
 *.txt
 *.log
 !ATTRIBUTIONS.md
-!guidelines/**/*.md
 !src/**/requirements.txt
 
 # OS
