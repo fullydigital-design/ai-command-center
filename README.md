@@ -10,6 +10,12 @@
 
 ---
 
+A local dashboard for managing AI/ML workstation workflows on RTX hardware. Monitors GPU and system resources in real time, tracks active training jobs across Kohya SS and Musubi Tuner, controls local AI services (ComfyUI, SwarmUI, Ollama), and aggregates model discovery from GitHub, HuggingFace, and CivitAI — all without sending data anywhere.
+
+Built for setups where you run your own stack and need a single interface to see what is happening across the machine.
+
+---
+
 <table>
 <tr>
 <td><img src="doc/scrennshot_1.png" width="100%"/><br/><sub>Command Center overview</sub></td>
