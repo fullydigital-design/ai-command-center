@@ -1,0 +1,91 @@
+# ============================================================
+# Kohya SS — FLUX.1 LoRA Training Config (example)
+# ============================================================
+# FLUX LoRA training using sd-scripts with the FLUX-specific
+# training script (sd3_train_network.py or flux_train_network.py).
+#
+# Launch command:
+#   accelerate launch --num_cpu_threads_per_process=2 \
+#     flux_train_network.py --config_file "kohya_lora_flux.toml"
+#
+# Notes for RTX 5090 (32GB VRAM):
+#   - FLUX.1-dev is ~24GB in bf16, leaving ~8GB for training
+#   - Use gradient_checkpointing + cache_text_encoder_outputs
+#   - batch_size=1 is recommended, accumulation for effective >1
+#   - network_dim 4-16 for FLUX (lower than SDXL LoRAs)
+# ============================================================
+
+# ── Model ─────────────────────────────────────────────────────
+pretrained_model_name_or_path = "C:\\_AI\\_test_fresh_all_AI\\models\\checkpoints\\flux1-dev.safetensors"
+clip_l = "C:\\_AI\\_test_fresh_all_AI\\models\\clip\\clip_l.safetensors"
+t5xxl = "C:\\_AI\\_test_fresh_all_AI\\models\\clip\\t5xxl_fp16.safetensors"
+ae = "C:\\_AI\\_test_fresh_all_AI\\models\\vae\\ae.safetensors"
+
+# ── Dataset ───────────────────────────────────────────────────
+train_data_dir = "C:\\_AI\\_test_fresh_all_AI\\training_data\\style_oil_painting"
+resolution = "512,768,1024"
+enable_bucket = true
+min_bucket_reso = 256
+max_bucket_reso = 1536
+bucket_reso_steps = 64
+
+# ── Training Parameters ──────────────────────────────────────
+output_name = "oil_painting_style_flux_lora"
+output_dir = "C:\\_AI\\_test_fresh_all_AI\\models\\loras"
+logging_dir = "C:\\_AI\\_test_fresh_all_AI\\training_data\\logs\\oil_painting_flux"
+log_prefix = "oil_painting_flux_"
+
+max_train_epochs = 30
+max_train_steps = 0
+train_batch_size = 1
+gradient_accumulation_steps = 4
+gradient_checkpointing = true
+learning_rate = 5e-5
+lr_scheduler = "constant_with_warmup"
+lr_warmup_steps = 200
+optimizer_type = "AdamW8bit"
+max_grad_norm = 1.0
+
+# ── Network (LoRA) — FLUX uses lower dims ─────────────────────
+network_module = "networks.lora_flux"
+network_dim = 8
+network_alpha = 4
+
+# ── FLUX-specific ─────────────────────────────────────────────
+cache_text_encoder_outputs = true
+cache_text_encoder_outputs_to_disk = true
+apply_t5_attn_mask = true
+t5xxl_max_token_length = 512
+
+# ── Mixed Precision ───────────────────────────────────────────
+mixed_precision = "bf16"
+full_bf16 = true
+
+# ── Sampling ──────────────────────────────────────────────────
+sample_every_n_epochs = 5
+sample_prompts = "C:\\_AI\\_test_fresh_all_AI\\training_data\\style_oil_painting\\sample_prompts.txt"
+sample_sampler = "euler"
+
+# ── Saving ────────────────────────────────────────────────────
+save_every_n_epochs = 10
+save_model_as = "safetensors"
+save_precision = "bf16"
+save_state = false
+
+# ── Performance ───────────────────────────────────────────────
+sdpa = true
+cache_latents = true
+cache_latents_to_disk = true
+persistent_data_loader_workers = true
+max_data_loader_n_workers = 4
+seed = 1234
+
+# ── Captioning ────────────────────────────────────────────────
+caption_extension = ".txt"
+shuffle_caption = true
+keep_tokens = 0
+max_token_length = 512
+
+# ── Regularization ────────────────────────────────────────────
+prior_loss_weight = 1.0
+min_snr_gamma = 5.0

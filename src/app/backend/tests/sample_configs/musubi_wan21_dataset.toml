@@ -1,0 +1,45 @@
+# ============================================================
+# Musubi Tuner — Dataset Config (example)
+# ============================================================
+# This is the dataset config referenced by the main training
+# TOML via `dataset_config = "path/to/dataset.toml"`.
+#
+# Musubi uses a separate dataset config that defines one or
+# more data sources with their own captions and settings.
+# This is different from Kohya's train_data_dir approach.
+#
+# Place this file alongside your training data.
+# ============================================================
+
+[general]
+# Number of repeats for the entire dataset per epoch
+resolution = [832, 480]
+caption_extension = ".txt"
+batch_size = 1
+enable_bucket = true
+bucket_no_upscale = true
+
+# ── Video dataset 1: Dance moves ─────────────────────────────
+[[datasets]]
+video_directory = "C:\\_AI\\_test_fresh_all_AI\\training_data\\dance_moves\\videos"
+caption_extension = ".txt"
+num_repeats = 5
+# Each .mp4 in this folder should have a matching .txt caption
+# e.g. dance_01.mp4 + dance_01.txt
+
+# Optional: override resolution per dataset
+# resolution = [1280, 720]
+
+# Frame sampling
+target_frames = 16
+frame_extraction = "uniform"    # "uniform" | "random" | "sequential"
+frame_stride = 1
+
+# ── Video dataset 2: Camera pans (optional second source) ────
+[[datasets]]
+video_directory = "C:\\_AI\\_test_fresh_all_AI\\training_data\\dance_moves\\camera_pans"
+caption_extension = ".txt"
+num_repeats = 3
+target_frames = 16
+frame_extraction = "uniform"
+frame_stride = 2

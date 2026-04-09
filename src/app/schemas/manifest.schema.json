@@ -1,0 +1,385 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://ai-command-center/manifest.schema.json",
+  "title": "Script Package Manifest",
+  "description": "Contract between a Script Package (.zip) and the AI Command Center app. Must be at the root of the package as manifest.json.",
+  "type": "object",
+  "required": ["id", "name", "version", "minAppVersion", "author", "created", "updated", "description", "category", "tags", "requires", "actions", "files"],
+  "additionalProperties": false,
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+      "description": "Unique package identifier (kebab-case, e.g. 'rtx5090-setup')"
+    },
+    "name": {
+      "type": "string",
+      "description": "Human-readable name"
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$",
+      "description": "Semantic version (e.g. '2.4.0')"
+    },
+    "minAppVersion": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$",
+      "description": "Minimum app version required to run this package"
+    },
+    "author": {
+      "type": "string",
+      "description": "Author name"
+    },
+    "created": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO date of creation"
+    },
+    "updated": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO date of last modification"
+    },
+    "description": {
+      "type": "string",
+      "maxLength": 200,
+      "description": "Short description (shown in package list)"
+    },
+    "longDescription": {
+      "type": "string",
+      "description": "Longer description / changelog (shown in detail view)"
+    },
+    "category": {
+      "type": "string",
+      "enum": ["setup", "training", "nodes", "models", "utility", "custom"],
+      "description": "Package category for organization"
+    },
+    "tags": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Tags for filtering/search"
+    },
+    "color": {
+      "type": "string",
+      "pattern": "^#[0-9a-fA-F]{6}$",
+      "description": "Accent color hex for UI theming (e.g. '#6d5aff')"
+    },
+    "icon": {
+      "type": "string",
+      "description": "Icon name from lucide-react (e.g. 'Package', 'Cpu', 'Zap')"
+    },
+    "requires": { "$ref": "#/$defs/PackageRequirements" },
+    "actions": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/PackageAction" },
+      "minItems": 1,
+      "description": "Executable actions (shown as buttons in the UI)"
+    },
+    "configs": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/PackageConfig" },
+      "description": "Config file templates (editable in the app)"
+    },
+    "files": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/PackageFile" },
+      "minItems": 1,
+      "description": "File listing (relative paths within the package)"
+    },
+    "readme": {
+      "type": "string",
+      "description": "Path to README.md within the package"
+    },
+    "nodesFile": {
+      "type": "string",
+      "description": "Path to nodes list JSON (ComfyUI custom nodes)"
+    },
+    "changelog": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/ChangelogEntry" },
+      "description": "Changelog entries"
+    }
+  },
+
+  "$defs": {
+    "PackageRequirements": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "System requirements the app checks before running actions",
+      "properties": {
+        "python": {
+          "type": "string",
+          "description": "Python version range (e.g. '>=3.10,<=3.12')"
+        },
+        "gpu": {
+          "type": "string",
+          "enum": ["nvidia", "amd", "any"],
+          "description": "Required GPU vendor"
+        },
+        "os": {
+          "type": "string",
+          "enum": ["windows", "linux", "macos", "any"],
+          "description": "Target OS"
+        },
+        "minVramMb": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Minimum VRAM in MB"
+        },
+        "minRamGb": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Minimum system RAM in GB"
+        },
+        "dependsOn": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Other package IDs that must be installed first"
+        }
+      }
+    },
+
+    "PackageAction": {
+      "type": "object",
+      "required": ["id", "label", "description", "steps"],
+      "additionalProperties": false,
+      "description": "A single executable action within a package",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique ID within this package (e.g. 'install_comfyui')"
+        },
+        "label": {
+          "type": "string",
+          "description": "Display label (e.g. 'Install ComfyUI')"
+        },
+        "icon": {
+          "type": "string",
+          "description": "Lucide icon name"
+        },
+        "description": {
+          "type": "string",
+          "description": "Short description"
+        },
+        "group": {
+          "type": "string",
+          "description": "Action group for UI organization"
+        },
+        "admin": {
+          "type": "boolean",
+          "default": false,
+          "description": "Whether this action requires admin privileges"
+        },
+        "confirmRequired": {
+          "type": "boolean",
+          "default": false,
+          "description": "Whether to show a confirmation dialog before running"
+        },
+        "confirmMessage": {
+          "type": "string",
+          "description": "Confirmation message (if confirmRequired)"
+        },
+        "danger": {
+          "type": "string",
+          "enum": ["none", "low", "medium", "critical"],
+          "default": "none",
+          "description": "Danger level for UI styling"
+        },
+        "steps": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/ActionStep" },
+          "minItems": 1,
+          "description": "Ordered list of steps to execute"
+        },
+        "estimatedDurationSec": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Estimated duration in seconds (for progress display)"
+        }
+      }
+    },
+
+    "ActionStep": {
+      "type": "object",
+      "required": ["run", "type"],
+      "additionalProperties": false,
+      "description": "A single step within an action",
+      "properties": {
+        "run": {
+          "type": "string",
+          "description": "Script file to run (relative to package root)"
+        },
+        "type": {
+          "type": "string",
+          "enum": ["bat", "python", "powershell", "shell"],
+          "description": "Script type (determines how the app executes it)"
+        },
+        "args": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Arguments to pass to the script"
+        },
+        "env": {
+          "type": "object",
+          "additionalProperties": { "type": "string" },
+          "description": "Environment variables to set for this step"
+        },
+        "admin": {
+          "type": "boolean",
+          "default": false,
+          "description": "Whether this step needs admin"
+        },
+        "workdir": {
+          "type": "string",
+          "description": "Working directory (relative to AI workspace root)"
+        },
+        "label": {
+          "type": "string",
+          "description": "Display label for this step in progress UI"
+        },
+        "critical": {
+          "type": "boolean",
+          "default": true,
+          "description": "Whether failure of this step should stop the action"
+        },
+        "timeoutSec": {
+          "type": "integer",
+          "minimum": 0,
+          "default": 0,
+          "description": "Timeout in seconds (0 = no timeout)"
+        }
+      }
+    },
+
+    "PackageConfig": {
+      "type": "object",
+      "required": ["id", "label", "file", "target", "format", "editable"],
+      "additionalProperties": false,
+      "description": "A config file template that can be edited in the app",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique ID within this package"
+        },
+        "label": {
+          "type": "string",
+          "description": "Display label"
+        },
+        "description": {
+          "type": "string",
+          "description": "Short description"
+        },
+        "file": {
+          "type": "string",
+          "description": "Source file within the package"
+        },
+        "target": {
+          "type": "string",
+          "description": "Target path (with {PLACEHOLDER} variables)"
+        },
+        "format": {
+          "type": "string",
+          "enum": ["toml", "yaml", "json", "ini", "text"],
+          "description": "Config format (determines editor mode)"
+        },
+        "editable": {
+          "type": "boolean",
+          "description": "Whether users should edit this before running"
+        },
+        "variables": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/ConfigVariable" },
+          "description": "Variables that need user input before deploying"
+        }
+      }
+    },
+
+    "ConfigVariable": {
+      "type": "object",
+      "required": ["name", "label", "defaultValue", "inputType"],
+      "additionalProperties": false,
+      "description": "A variable placeholder within a config template",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Placeholder name (e.g. 'TRAINING_DATA_DIR')"
+        },
+        "label": {
+          "type": "string",
+          "description": "Display label"
+        },
+        "defaultValue": {
+          "type": "string",
+          "description": "Default value"
+        },
+        "inputType": {
+          "type": "string",
+          "enum": ["text", "path", "number", "select"],
+          "description": "Input type for the editor"
+        },
+        "options": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Options for select type"
+        },
+        "description": {
+          "type": "string",
+          "description": "Help text"
+        }
+      }
+    },
+
+    "PackageFile": {
+      "type": "object",
+      "required": ["path", "type"],
+      "additionalProperties": false,
+      "description": "A file within the package",
+      "properties": {
+        "path": {
+          "type": "string",
+          "description": "Relative path within the package"
+        },
+        "type": {
+          "type": "string",
+          "enum": ["script", "config", "readme", "data", "template", "other"],
+          "description": "File type"
+        },
+        "size": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "File size in bytes"
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$",
+          "description": "SHA-256 hash for integrity verification"
+        }
+      }
+    },
+
+    "ChangelogEntry": {
+      "type": "object",
+      "required": ["version", "date", "changes"],
+      "additionalProperties": false,
+      "description": "A changelog entry for version tracking",
+      "properties": {
+        "version": {
+          "type": "string",
+          "pattern": "^\\d+\\.\\d+\\.\\d+$",
+          "description": "Version this entry is for"
+        },
+        "date": {
+          "type": "string",
+          "format": "date-time",
+          "description": "ISO date"
+        },
+        "changes": {
+          "type": "array",
+          "items": { "type": "string" },
+          "minItems": 1,
+          "description": "List of changes"
+        }
+      }
+    }
+  }
+}

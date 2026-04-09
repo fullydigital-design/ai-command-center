@@ -1,0 +1,67 @@
+# ============================================================
+# Kohya SS — SD 1.5 DreamBooth Training Config (example)
+# ============================================================
+# Classic DreamBooth fine-tuning (no LoRA) for SD 1.5.
+# Less common now but still used for full model fine-tunes.
+#
+# Launch command:
+#   accelerate launch --num_cpu_threads_per_process=2 \
+#     train_db.py --config_file "kohya_dreambooth_sd15.toml"
+#
+# The backend detects 'accelerate' + 'train_db' in cmdline.
+# ============================================================
+
+# ── Model ─────────────────────────────────────────────────────
+pretrained_model_name_or_path = "C:\\_AI\\_test_fresh_all_AI\\models\\checkpoints\\v1-5-pruned-emaonly.safetensors"
+v2 = false
+v_parameterization = false
+
+# ── Dataset ───────────────────────────────────────────────────
+train_data_dir = "C:\\_AI\\_test_fresh_all_AI\\training_data\\portrait_session"
+reg_data_dir = "C:\\_AI\\_test_fresh_all_AI\\training_data\\portrait_session\\reg"
+resolution = "512"
+enable_bucket = true
+min_bucket_reso = 256
+max_bucket_reso = 768
+bucket_reso_steps = 64
+
+# ── Training Parameters ──────────────────────────────────────
+output_name = "portrait_dreambooth_v1"
+output_dir = "C:\\_AI\\_test_fresh_all_AI\\models\\checkpoints\\fine_tuned"
+logging_dir = "C:\\_AI\\_test_fresh_all_AI\\training_data\\logs\\portrait_dreambooth"
+log_prefix = "portrait_db_"
+
+max_train_epochs = 100
+max_train_steps = 0
+train_batch_size = 4
+gradient_accumulation_steps = 1
+gradient_checkpointing = true
+learning_rate = 5e-6
+lr_scheduler = "constant"
+lr_warmup_steps = 0
+optimizer_type = "AdamW"
+max_grad_norm = 1.0
+
+# ── DreamBooth-specific ──────────────────────────────────────
+prior_loss_weight = 1.0
+
+# ── Mixed Precision ───────────────────────────────────────────
+mixed_precision = "fp16"
+
+# ── Saving ────────────────────────────────────────────────────
+save_every_n_epochs = 25
+save_model_as = "safetensors"
+save_precision = "fp16"
+save_state = true
+
+# ── Performance ───────────────────────────────────────────────
+xformers = true
+cache_latents = true
+persistent_data_loader_workers = true
+max_data_loader_n_workers = 4
+seed = 42
+
+# ── Captioning ────────────────────────────────────────────────
+caption_extension = ".txt"
+shuffle_caption = false
+keep_tokens = 1

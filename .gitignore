@@ -1,0 +1,31 @@
+# Dependencies
+node_modules/
+
+# Python
+venv/
+__pycache__/
+*.pyc
+
+# Build outputs
+dist/
+build/
+src-tauri/target/
+src-tauri/binaries/*.exe
+
+# Environment
+.env
+
+# Temp/debug files
+_tmp_*
+*.txt
+*.log
+!ATTRIBUTIONS.md
+!guidelines/**/*.md
+!src/**/requirements.txt
+
+# OS
+desktop.ini
+.DS_Store
+
+# IDE
+.cursor/

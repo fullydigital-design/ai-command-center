@@ -1,0 +1,86 @@
+# ============================================================
+# Musubi Tuner — Wan2.1 Video LoRA Training Config (example)
+# ============================================================
+# Video LoRA training using musubi-tuner for Wan2.1 models.
+#
+# Launch command:
+#   python musubi_tuner/wan_train_network.py \
+#     --config_file "musubi_wan21_video.toml"
+#
+# The backend detects this by finding 'musubi' + 'train' in
+# the process cmdline, then reads this TOML.
+#
+# Notes for RTX 5090 (32GB VRAM):
+#   - Wan2.1 14B is ~28GB in bf16 — tight on 32GB
+#   - Use gradient_checkpointing + cache_text_encoder_outputs
+#   - batch_size=1 mandatory for 14B
+#   - For 1.3B model, batch_size 2-4 possible
+#   - frame_extraction auto-handles video → frame pairs
+# ============================================================
+
+# ── Model ─────────────────────────────────────────────────────
+pretrained_model_name_or_path = "C:\\_AI\\_test_fresh_all_AI\\models\\video\\Wan2.1-T2V-14B"
+# For 1.3B variant, use:
+# pretrained_model_name_or_path = "C:\\_AI\\_test_fresh_all_AI\\models\\video\\Wan2.1-T2V-1.3B"
+
+# ── Dataset ───────────────────────────────────────────────────
+# Musubi uses a dataset config TOML for video data
+dataset_config = "C:\\_AI\\_test_fresh_all_AI\\training_data\\dance_moves\\dataset.toml"
+
+# Alternatively, for simple single-directory training:
+# train_data_dir = "C:\\_AI\\_test_fresh_all_AI\\training_data\\dance_moves\\videos"
+# video_directory is scanned for .mp4/.webm files with matching .txt captions
+
+# ── Training Parameters ──────────────────────────────────────
+output_name = "dance_moves_wan21_lora"
+output_dir = "C:\\_AI\\_test_fresh_all_AI\\models\\loras\\video"
+logging_dir = "C:\\_AI\\_test_fresh_all_AI\\training_data\\logs\\dance_moves_wan21"
+log_prefix = "dance_moves_"
+
+max_train_epochs = 50
+max_train_steps = 0
+train_batch_size = 1
+gradient_accumulation_steps = 4
+gradient_checkpointing = true
+learning_rate = 1e-4
+lr_scheduler = "cosine"
+lr_warmup_steps = 50
+optimizer_type = "AdamW8bit"
+max_grad_norm = 1.0
+
+# ── Network (LoRA) ────────────────────────────────────────────
+network_module = "networks.lora_wan"
+network_dim = 16
+network_alpha = 8
+
+# ── Video-specific ────────────────────────────────────────────
+# Number of frames to extract per video clip
+frame_extraction = 16
+# Target resolution (width x height)
+resolution = "832,480"
+# Frame sampling strategy
+frame_sample_strategy = "uniform"
+
+# ── Mixed Precision ───────────────────────────────────────────
+mixed_precision = "bf16"
+full_bf16 = true
+
+# ── Saving ────────────────────────────────────────────────────
+save_every_n_epochs = 10
+save_model_as = "safetensors"
+save_precision = "bf16"
+save_state = false
+
+# ── Performance ───────────────────────────────────────────────
+sdpa = true
+cache_latents = true
+cache_latents_to_disk = true
+cache_text_encoder_outputs = true
+cache_text_encoder_outputs_to_disk = true
+persistent_data_loader_workers = true
+max_data_loader_n_workers = 2
+seed = 42
+
+# ── Captioning ────────────────────────────────────────────────
+caption_extension = ".txt"
+shuffle_caption = false

@@ -1,0 +1,88 @@
+# ============================================================
+# Kohya SS — SDXL LoRA Training Config (example)
+# ============================================================
+# This is a realistic training config for Kohya sd-scripts.
+# Used by test_endpoints.py and the TOML parser in training.py.
+#
+# Launch command that Kohya generates:
+#   accelerate launch --num_cpu_threads_per_process=2 \
+#     sdxl_train_network.py --config_file "kohya_lora_sdxl.toml"
+#
+# The backend detects training by finding 'accelerate' +
+# 'train_network' in process cmdline, then reads this TOML
+# to populate the TrainingJob type.
+# ============================================================
+
+# ── Model ─────────────────────────────────────────────────────
+pretrained_model_name_or_path = "C:\\_AI\\_test_fresh_all_AI\\models\\checkpoints\\sd_xl_base_1.0.safetensors"
+vae = "C:\\_AI\\_test_fresh_all_AI\\models\\vae\\sdxl_vae.safetensors"
+
+# ── Dataset ───────────────────────────────────────────────────
+train_data_dir = "C:\\_AI\\_test_fresh_all_AI\\training_data\\my_character_v2"
+resolution = "1024,1024"
+enable_bucket = true
+min_bucket_reso = 256
+max_bucket_reso = 2048
+bucket_reso_steps = 64
+
+# ── Training Parameters ──────────────────────────────────────
+output_name = "my_character_v2_lora"
+output_dir = "C:\\_AI\\_test_fresh_all_AI\\models\\loras"
+logging_dir = "C:\\_AI\\_test_fresh_all_AI\\training_data\\logs\\my_character_v2"
+log_prefix = "my_character_v2_"
+
+max_train_epochs = 20
+max_train_steps = 0
+train_batch_size = 2
+gradient_accumulation_steps = 1
+learning_rate = 1e-4
+lr_scheduler = "cosine_with_restarts"
+lr_scheduler_num_cycles = 3
+lr_warmup_steps = 100
+optimizer_type = "AdamW8bit"
+max_grad_norm = 1.0
+
+# ── Network (LoRA) ────────────────────────────────────────────
+network_module = "networks.lora"
+network_dim = 32
+network_alpha = 16
+network_train_unet_only = false
+network_train_text_encoder_only = false
+
+# ── SDXL-specific ─────────────────────────────────────────────
+cache_text_encoder_outputs = true
+no_half_vae = true
+
+# ── Mixed Precision ───────────────────────────────────────────
+mixed_precision = "bf16"
+full_bf16 = false
+
+# ── Sampling ──────────────────────────────────────────────────
+sample_every_n_epochs = 2
+sample_prompts = "C:\\_AI\\_test_fresh_all_AI\\training_data\\my_character_v2\\prompts.txt"
+sample_sampler = "euler_a"
+
+# ── Saving ────────────────────────────────────────────────────
+save_every_n_epochs = 5
+save_model_as = "safetensors"
+save_precision = "bf16"
+save_state = false
+
+# ── Performance ───────────────────────────────────────────────
+xformers = true
+cache_latents = true
+cache_latents_to_disk = false
+persistent_data_loader_workers = true
+max_data_loader_n_workers = 4
+seed = 42
+
+# ── Augmentation ──────────────────────────────────────────────
+flip_aug = false
+color_aug = false
+random_crop = false
+
+# ── Captioning ────────────────────────────────────────────────
+caption_extension = ".txt"
+shuffle_caption = true
+keep_tokens = 1
+max_token_length = 225
