@@ -70,6 +70,8 @@ import type { FetchMeta } from "./apiKeys";
 // --- Environment detection (single source of truth: env.ts) ---
 import { isTauriEnv, shouldTryBackend, getApiBase } from "./env";
 import { fetchExternalAPI, fetchBackend } from "./fetchWithRetry";
+import { createService } from "./createService";
+import { mockRepos } from "./mocks/github.mock";
 
 // --- Live API cache ---
 let liveCache: { data: GitHubRepo[]; ts: number } | null = null;
@@ -339,20 +341,12 @@ export function getDataSource(): DataSource {
  * Get all tracked repos.
  * Priority: Tauri backend → Live GitHub API (browser + key) → Mock data
  */
-export async function getTrackedRepos(): Promise<GitHubRepo[]> {
-  if (shouldTryBackend()) {
-    try {
-      const res = await fetchBackend(`${getApiBase()}/github/repos`);
-      if (res.ok) return await res.json();
-    } catch { /* fall through */ }
-  }
-
-  // Try live API with stored key
-  const live = await fetchLiveGitHubRepos();
-  if (live) return live;
-
-  return [...mockRepos];
-}
+export const getTrackedRepos = createService<GitHubRepo[]>({
+  backendPath: "/github/repos",
+  liveFetcher: () => fetchLiveGitHubRepos(),
+  mockData: () => [...mockRepos],
+  label: "githubService.getTrackedRepos",
+});
 
 /**
  * Check all repos for updates.
@@ -437,196 +431,4 @@ export function getCategories(): CategoryDef[] {
   ];
 }
 
-// --- Mock data ---
-
-const mockRepos: GitHubRepo[] = [
-  // === CORE STACK (installed tools from the BAT) ===
-  {
-    id: "1", name: "ComfyUI", fullName: "comfyanonymous/ComfyUI",
-    description: "The most powerful and modular diffusion model GUI and backend with a graph/nodes interface",
-    stars: "68.2k", forks: "8.1k", openIssues: 1842, language: "Python", languageColor: "#3572A5",
-    lastUpdate: "2 hours ago", lastCommitMsg: "fix: resolve memory leak in GGUF loader for large models",
-    releaseTag: "v0.3.14", category: "core-stack", trending: true, installed: true, hasUpdate: true, pinned: true,
-    topics: ["stable-diffusion", "flux", "gui", "nodes"],
-    localPath: "C:\\_AI\\_test_fresh_all_AI\\ComfyUI",
-    commitsBehind: 3,
-  },
-  {
-    id: "2", name: "SwarmUI", fullName: "mcmonkeyprojects/SwarmUI",
-    description: "SwarmUI - a modular web-UI for generation with massive backend support",
-    stars: "8.9k", forks: "680", openIssues: 287, language: "C#", languageColor: "#178600",
-    lastUpdate: "2 days ago", lastCommitMsg: "feat: add FLUX.1 Kontext support + image reference workflows",
-    releaseTag: "v0.9.5-Beta", category: "core-stack", trending: false, installed: true, hasUpdate: false, pinned: true,
-    topics: ["swarmui", "generation", "web-ui", "comfyui-backend"],
-    localPath: "C:\\_AI\\_test_fresh_all_AI\\SwarmUI",
-  },
-  {
-    id: "3", name: "sd-scripts", fullName: "kohya-ss/sd-scripts",
-    description: "Training scripts for Stable Diffusion, FLUX LoRA, DreamBooth and fine-tuning",
-    stars: "10.8k", forks: "2.1k", openIssues: 134, language: "Python", languageColor: "#3572A5",
-    lastUpdate: "5 days ago", lastCommitMsg: "add support for FLUX.1 Kontext LoRA training",
-    releaseTag: "v0.8.9", category: "core-stack", trending: false, installed: true, hasUpdate: false, pinned: true,
-    topics: ["training", "lora", "dreambooth", "flux", "sdxl"],
-    localPath: "C:\\_AI\\_test_fresh_all_AI\\kohya_ss",
-  },
-  {
-    id: "4", name: "musubi-tuner", fullName: "kohya-ss/musubi-tuner",
-    description: "Video model fine-tuning toolkit for Wan, HunyuanVideo, FramePack and other video architectures",
-    stars: "5.2k", forks: "420", openIssues: 89, language: "Python", languageColor: "#3572A5",
-    lastUpdate: "1 week ago", lastCommitMsg: "add Wan2.1 14B I2V support + fix frame interpolation",
-    releaseTag: "v0.3.1", category: "core-stack", trending: true, installed: true, hasUpdate: false, pinned: true,
-    topics: ["video", "fine-tuning", "wan", "hunyuan", "framepack"],
-    localPath: "C:\\_AI\\_test_fresh_all_AI\\musubi-tuner",
-  },
-
-  // === CUSTOM NODES (from the BAT's 22-node list) ===
-  {
-    id: "10", name: "ComfyUI-Manager", fullName: "ltdrdata/ComfyUI-Manager",
-    description: "ComfyUI custom node manager - install, update, and manage custom nodes easily",
-    stars: "12.1k", forks: "1.4k", openIssues: 67, language: "Python", languageColor: "#3572A5",
-    lastUpdate: "6 hours ago", lastCommitMsg: "fix: node compatibility check for latest ComfyUI",
-    releaseTag: "v3.7.2", category: "custom-nodes", trending: false, installed: true, hasUpdate: true, pinned: false,
-    topics: ["comfyui", "manager", "custom-nodes"],
-    localPath: "C:\\_AI\\_test_fresh_all_AI\\ComfyUI\\custom_nodes\\ComfyUI-Manager",
-    commitsBehind: 7,
-  },
-  {
-    id: "11", name: "ComfyUI-Impact-Pack", fullName: "ltdrdata/ComfyUI-Impact-Pack",
-    description: "Detailer, SAM, bbox, face detection, and advanced segmentation nodes",
-    stars: "4.2k", forks: "510", openIssues: 45, language: "Python", languageColor: "#3572A5",
-    lastUpdate: "3 days ago", lastCommitMsg: "update SAM2 model support for video segmentation",
-    releaseTag: "v7.2.1", category: "custom-nodes", trending: false, installed: true, hasUpdate: false, pinned: false,
-    topics: ["comfyui", "detailer", "sam", "segmentation"],
-    localPath: "C:\\_AI\\_test_fresh_all_AI\\ComfyUI\\custom_nodes\\ComfyUI-Impact-Pack",
-  },
-  {
-    id: "12", name: "ComfyUI_IPAdapter_plus", fullName: "cubiq/ComfyUI_IPAdapter_plus",
-    description: "IP-Adapter implementation for ComfyUI with advanced features and multi-reference",
-    stars: "5.6k", forks: "490", openIssues: 32, language: "Python", languageColor: "#3572A5",
-    lastUpdate: "3 days ago", lastCommitMsg: "add FLUX IP-Adapter support + weight type selection",
-    releaseTag: "v2.5.0", category: "custom-nodes", trending: false, installed: true, hasUpdate: true, pinned: false,
-    topics: ["comfyui", "ip-adapter", "style-transfer"],
-    localPath: "C:\\_AI\\_test_fresh_all_AI\\ComfyUI\\custom_nodes\\ComfyUI_IPAdapter_plus",
-    commitsBehind: 5,
-  },
-  {
-    id: "13", name: "ComfyUI-VideoHelperSuite", fullName: "Kosinkadink/ComfyUI-VideoHelperSuite",
-    description: "Video nodes for ComfyUI including loading, combining, splitting, and exporting video files",
-    stars: "3.4k", forks: "340", openIssues: 28, language: "Python", languageColor: "#3572A5",
-    lastUpdate: "4 days ago", lastCommitMsg: "fix: audio sync in video combine node",
-    releaseTag: "v1.4.0", category: "custom-nodes", trending: false, installed: true, hasUpdate: true, pinned: false,
-    topics: ["comfyui", "video", "nodes"],
-    localPath: "C:\\_AI\\_test_fresh_all_AI\\ComfyUI\\custom_nodes\\ComfyUI-VideoHelperSuite",
-    commitsBehind: 2,
-  },
-  {
-    id: "14", name: "ComfyUI-GGUF", fullName: "city96/ComfyUI-GGUF",
-    description: "GGUF quantized model support for ComfyUI - run large models with less VRAM",
-    stars: "4.1k", forks: "280", openIssues: 19, language: "Python", languageColor: "#3572A5",
-    lastUpdate: "1 week ago", lastCommitMsg: "add Q5_K_M quantization support + flux gguf loader",
-    releaseTag: "v0.4.2", category: "custom-nodes", trending: true, installed: true, hasUpdate: false, pinned: false,
-    topics: ["comfyui", "gguf", "quantization", "flux"],
-  },
-  {
-    id: "15", name: "ComfyUI-Advanced-ControlNet", fullName: "Kosinkadink/ComfyUI-Advanced-ControlNet",
-    description: "Advanced ControlNet tools with multi-ControlNet, batch processing, and weight scheduling",
-    stars: "2.8k", forks: "220", openIssues: 15, language: "Python", languageColor: "#3572A5",
-    lastUpdate: "5 days ago", lastCommitMsg: "update: support FLUX ControlNet union model",
-    releaseTag: "v1.2.3", category: "custom-nodes", trending: false, installed: true, hasUpdate: false, pinned: false,
-    topics: ["comfyui", "controlnet", "multi-controlnet"],
-  },
-  {
-    id: "16", name: "comfyui_controlnet_aux", fullName: "Fannovel16/comfyui_controlnet_aux",
-    description: "ControlNet preprocessors for ComfyUI - OpenPose, Depth, Canny, LineArt and more",
-    stars: "3.1k", forks: "310", openIssues: 41, language: "Python", languageColor: "#3572A5",
-    lastUpdate: "1 week ago", lastCommitMsg: "add DWPose v2 + MiDaS depth estimation update",
-    releaseTag: "v0.8.4", category: "custom-nodes", trending: false, installed: true, hasUpdate: false, pinned: false,
-    topics: ["comfyui", "controlnet", "preprocessors", "openpose"],
-  },
-  {
-    id: "17", name: "rgthree-comfy", fullName: "rgthree/rgthree-comfy",
-    description: "Workflow organizer nodes - reroute, bookmark, seed control, and UI utilities",
-    stars: "2.4k", forks: "180", openIssues: 12, language: "TypeScript", languageColor: "#3178C6",
-    lastUpdate: "6 days ago", lastCommitMsg: "fix: node group resize handles on latest ComfyUI",
-    releaseTag: "v1.9.0", category: "custom-nodes", trending: false, installed: true, hasUpdate: false, pinned: false,
-    topics: ["comfyui", "workflow", "organizer", "ui"],
-  },
-  {
-    id: "18", name: "comfyui-reactor-node", fullName: "Gourieff/comfyui-reactor-node",
-    description: "Fast and accurate face swap node for ComfyUI based on ReActor/InsightFace",
-    stars: "3.8k", forks: "350", openIssues: 56, language: "Python", languageColor: "#3572A5",
-    lastUpdate: "2 weeks ago", lastCommitMsg: "update insightface models + multi-face support",
-    releaseTag: "v0.5.1", category: "custom-nodes", trending: false, installed: true, hasUpdate: false, pinned: false,
-    topics: ["comfyui", "face-swap", "reactor", "insightface"],
-  },
-
-  // === MODELS & ARCHITECTURES ===
-  {
-    id: "20", name: "FLUX", fullName: "black-forest-labs/flux",
-    description: "Official repository for FLUX.1 text-to-image models by Black Forest Labs",
-    stars: "22.4k", forks: "1.9k", openIssues: 210, language: "Python", languageColor: "#3572A5",
-    lastUpdate: "1 day ago", lastCommitMsg: "release: FLUX.1 Kontext model weights + inference guide",
-    releaseTag: "v0.4.0", category: "models", trending: true, installed: true, hasUpdate: false, pinned: false,
-    topics: ["text-to-image", "diffusion", "flux", "kontext"],
-  },
-  {
-    id: "21", name: "Wan2.1", fullName: "Wan-AI/Wan2.1",
-    description: "Wan2.1: A comprehensive and open suite of video foundation models (T2V, I2V, 14B)",
-    stars: "18.7k", forks: "1.3k", openIssues: 340, language: "Python", languageColor: "#3572A5",
-    lastUpdate: "3 days ago", lastCommitMsg: "add 14B I2V model weights + camera control support",
-    releaseTag: "v2.1", category: "video", trending: true, installed: true, hasUpdate: false, pinned: false,
-    topics: ["video-generation", "foundation-model", "i2v", "t2v"],
-  },
-  {
-    id: "22", name: "HunyuanVideo", fullName: "Tencent/HunyuanVideo",
-    description: "A systematic framework for large video generative models with high visual quality",
-    stars: "9.3k", forks: "810", openIssues: 178, language: "Python", languageColor: "#3572A5",
-    lastUpdate: "1 week ago", lastCommitMsg: "fix: video decoding for long sequence generation",
-    releaseTag: "v1.0", category: "video", trending: false, installed: false, hasUpdate: false, pinned: false,
-    topics: ["video-generation", "large-model", "hunyuan"],
-  },
-  {
-    id: "23", name: "FramePack", fullName: "lllyasviel/FramePack",
-    description: "FramePack - efficient video generation framework with next-frame prediction",
-    stars: "11.5k", forks: "870", openIssues: 120, language: "Python", languageColor: "#3572A5",
-    lastUpdate: "5 days ago", lastCommitMsg: "release: FramePack v2 with 2x speed improvement",
-    releaseTag: "v2.0", category: "video", trending: true, installed: false, hasUpdate: false, pinned: false,
-    topics: ["video", "generation", "framepack", "next-frame"],
-  },
-
-  // === TOOLS ===
-  {
-    id: "30", name: "Fooocus", fullName: "lllyasviel/Fooocus",
-    description: "Focus on prompting and generating - minimal UI, maximum quality defaults",
-    stars: "42.1k", forks: "5.8k", openIssues: 890, language: "Python", languageColor: "#3572A5",
-    lastUpdate: "2 weeks ago", lastCommitMsg: "add inpainting improvements + SDXL turbo support",
-    releaseTag: "v2.5.5", category: "tools", trending: false, installed: false, hasUpdate: false, pinned: false,
-    topics: ["stable-diffusion", "sdxl", "minimal-ui"],
-  },
-  {
-    id: "31", name: "stable-diffusion-webui", fullName: "AUTOMATIC1111/stable-diffusion-webui",
-    description: "Stable Diffusion web UI - the original and most feature-rich SD interface",
-    stars: "148k", forks: "27.5k", openIssues: 2100, language: "Python", languageColor: "#3572A5",
-    lastUpdate: "1 month ago", lastCommitMsg: "fix: compatibility with latest torch 2.6",
-    releaseTag: "v1.10.1", category: "tools", trending: false, installed: false, hasUpdate: false, pinned: false,
-    topics: ["stable-diffusion", "webui", "gradio"],
-  },
-
-  // === TRAINING ===
-  {
-    id: "40", name: "ai-toolkit", fullName: "ostris/ai-toolkit",
-    description: "FLUX/SDXL LoRA training toolkit with automatic caption + simple config",
-    stars: "7.2k", forks: "680", openIssues: 95, language: "Python", languageColor: "#3572A5",
-    lastUpdate: "4 days ago", lastCommitMsg: "add FLUX Kontext LoRA fine-tuning support",
-    releaseTag: "v0.5.0", category: "training", trending: true, installed: false, hasUpdate: false, pinned: false,
-    topics: ["training", "flux", "lora", "sdxl", "toolkit"],
-  },
-  {
-    id: "41", name: "SimpleTuner", fullName: "bghira/SimpleTuner",
-    description: "General fine-tuning toolkit for SDXL, FLUX, and Stable Diffusion 3 with LoRA + full fine-tune",
-    stars: "4.8k", forks: "380", openIssues: 62, language: "Python", languageColor: "#3572A5",
-    lastUpdate: "1 week ago", lastCommitMsg: "fix: gradient checkpointing memory optimization for 24GB cards",
-    releaseTag: "v1.2.0", category: "training", trending: false, installed: false, hasUpdate: false, pinned: false,
-    topics: ["training", "fine-tuning", "flux", "sdxl", "sd3"],
-  },
-];
+// --- Mock data extracted to mocks/github.mock.ts ---

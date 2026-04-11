@@ -2,14 +2,16 @@
 # routers/services.py - Service health checks + start/stop
 # ============================================================
 
+import logging
 import os
-import socket
 import subprocess
 
-import psutil
 from fastapi import APIRouter
 
 from config import SERVICE_CONFIGS
+from utils.processes import check_port, find_pid_on_port, kill_process_tree
+
+logger = logging.getLogger("ai_command_center.services")
 
 router = APIRouter()
 
@@ -20,43 +22,6 @@ SERVICE_NAMES = {
     "ollama": "Ollama",
     "musubi": "Musubi Tuner",
 }
-
-
-def _check_port(host: str, port: int, timeout: float = 0.1) -> bool:
-    """Check if a TCP port is listening."""
-    try:
-        with socket.create_connection((host, port), timeout=timeout):
-            return True
-    except (ConnectionRefusedError, TimeoutError, OSError):
-        return False
-
-
-def _find_pid_on_port(port: int) -> int | None:
-    """Find the PID of the process listening on a given port."""
-    try:
-        for conn in psutil.net_connections(kind="tcp"):
-            laddr = conn.laddr
-            laddr_port = getattr(laddr, "port", None)
-            if laddr_port is None and isinstance(laddr, tuple) and len(laddr) >= 2:
-                laddr_port = laddr[1]
-            if laddr_port == port and conn.status == psutil.CONN_LISTEN:
-                return conn.pid
-    except (psutil.AccessDenied, PermissionError):
-        pass
-
-    # Fallback for restricted environments.
-    for proc in psutil.process_iter(["pid"]):
-        try:
-            for conn in proc.connections(kind="tcp"):
-                laddr = conn.laddr
-                laddr_port = getattr(laddr, "port", None)
-                if laddr_port is None and isinstance(laddr, tuple) and len(laddr) >= 2:
-                    laddr_port = laddr[1]
-                if laddr_port == port and conn.status == psutil.CONN_LISTEN:
-                    return proc.pid
-        except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
-            continue
-    return None
 
 
 @router.get("/status")
@@ -80,7 +45,7 @@ async def get_services_status():
             )
             continue
 
-        running = _check_port("127.0.0.1", int(port))
+        running = check_port("127.0.0.1", int(port))
         entry = {
             "id": sid,
             "name": name,
@@ -90,7 +55,7 @@ async def get_services_status():
 
         if running:
             entry["url"] = f"http://127.0.0.1:{int(port)}"
-            pid = _find_pid_on_port(int(port))
+            pid = find_pid_on_port(int(port))
             if pid:
                 entry["pid"] = pid
 
@@ -110,7 +75,7 @@ async def start_service(service_id: str):
     port = cfg.get("port")
 
     # Do not launch duplicates if service is already up.
-    if port and _check_port("127.0.0.1", int(port)):
+    if port and check_port("127.0.0.1", int(port)):
         return {
             "message": f"{name} is already running on port {int(port)}",
             "service_id": service_id,
@@ -182,33 +147,19 @@ async def stop_service(service_id: str):
         return {"message": f"{name} has no port - cannot stop", "service_id": service_id}
 
     port = int(port)
-    if not _check_port("127.0.0.1", port):
+    if not check_port("127.0.0.1", port):
         return {"message": f"{name} is not running", "service_id": service_id}
 
-    pid = _find_pid_on_port(port)
+    pid = find_pid_on_port(port)
     if not pid:
         return {
             "message": f"{name} is running on port {port} but PID not found (may need admin)",
             "service_id": service_id,
         }
 
-    try:
-        if os.name == "nt":
-            result = subprocess.run(
-                ["taskkill", "/F", "/PID", str(pid), "/T"],
-                capture_output=True,
-                text=True,
-                timeout=10,
-            )
-            if result.returncode == 0:
-                return {"message": f"{name} stopped (PID {pid})", "service_id": service_id}
+    killed = kill_process_tree(pid)
+    if killed:
+        logger.info("Stopped %s (PID %d)", name, pid)
+        return {"message": f"{name} stopped (PID {pid})", "service_id": service_id}
 
-            proc = psutil.Process(pid)
-            proc.terminate()
-            return {"message": f"{name} terminated (PID {pid})", "service_id": service_id}
-
-        proc = psutil.Process(pid)
-        proc.terminate()
-        return {"message": f"{name} terminated (PID {pid})", "service_id": service_id}
-    except Exception as e:
-        return {"message": f"Failed to stop {name}: {e}", "service_id": service_id}
+    return {"message": f"Failed to stop {name} (PID {pid})", "service_id": service_id}

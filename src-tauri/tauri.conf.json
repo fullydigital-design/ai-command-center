@@ -24,7 +24,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; connect-src 'self' http://127.0.0.1:8000 https://openrouter.ai https://*.unsplash.com; img-src 'self' data: https://*.unsplash.com; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'"
+      "csp": "default-src 'self'; connect-src 'self' http://127.0.0.1:8000 https://openrouter.ai https://*.unsplash.com; img-src 'self' data: https://*.unsplash.com; style-src 'self' 'unsafe-inline'; script-src 'self'"
     }
   },
   "bundle": {

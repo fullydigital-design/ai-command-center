@@ -21,7 +21,7 @@ venv\Scripts\activate
 pip install -r requirements.txt
 
 # 4. Run the server
-uvicorn main:app --host 127.0.0.1 --port 8420 --reload
+uvicorn main:app --host 127.0.0.1 --port 8000 --reload
 ```
 
 ### requirements.txt

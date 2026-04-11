@@ -2,7 +2,11 @@
 # utils/gpu.py - pynvml wrapper for GPU stats
 # ============================================================
 
+import logging
+
 import pynvml
+
+logger = logging.getLogger("ai_command_center.gpu")
 
 _initialized = False
 _handle = None
@@ -30,7 +34,7 @@ def _ensure_init():
         _handle = pynvml.nvmlDeviceGetHandleByIndex(0)
         _initialized = True
     except pynvml.NVMLError as e:
-        print(f"[GPU] pynvml init failed: {e}")
+        logger.warning("pynvml init failed: %s", e)
         _initialized = False
         _handle = None
 
@@ -66,7 +70,7 @@ def get_gpu_stats() -> dict:
             "powerLimit": round(limit),
         }
     except pynvml.NVMLError as e:
-        print(f"[GPU] nvml query failed: {e}")
+        logger.warning("nvml query failed: %s", e)
         return _fallback_stats()
 
 
@@ -77,7 +81,7 @@ def shutdown():
         try:
             pynvml.nvmlShutdown()
         except pynvml.NVMLError as e:
-            print(f"[GPU] nvml shutdown failed: {e}")
+            logger.warning("nvml shutdown failed: %s", e)
         finally:
             _initialized = False
             _handle = None

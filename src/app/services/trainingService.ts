@@ -115,129 +115,10 @@ import type {
 // --- Environment detection (single source of truth: env.ts) ---
 import { isTauriEnv, shouldTryBackend, getApiBase } from "./env";
 import { fetchBackend, fetchHealth } from "./fetchWithRetry";
-import { TOOL_REGISTRY } from "./toolsRegistry";
+import { createService } from "./createService";
+import { mockTrainingJobs, mockGpuStats, mockServiceHealth } from "./mocks/training.mock";
 
-// --- Loss curve generator (browser simulation) ---
-
-function generateLossHistory(steps: number): LossDataPoint[] {
-  return Array.from({ length: steps }, (_, i) => ({
-    step: (i + 1) * 10,
-    loss: 0.5 * Math.exp(-i * 0.03) + Math.random() * 0.02 + 0.02,
-  }));
-}
-
-// --- Mock data (browser prototype) ---
-
-const mockJobs: TrainingJob[] = [
-  {
-    id: "sim-1",
-    name: "Character LoRA v3 - Anime Style",
-    type: "kohya-lora",
-    tool: "kohya",
-    status: "running",
-    progress: 62,
-    epoch: 8,
-    totalEpochs: 12,
-    currentStep: 3720,
-    totalSteps: 6000,
-    loss: 0.0847,
-    learningRate: "1e-4",
-    batchSize: 4,
-    resolution: "1024x1024",
-    dataset: "character_dataset_v3",
-    datasetSize: 156,
-    startTime: "2 hrs ago",
-    eta: "1h 15m",
-    gpuUsage: 89,
-    vramUsage: 24.6,
-    model: "FLUX.1-dev",
-    outputPath: "C:\\_AI\\_test_fresh_all_AI\\training_data\\output\\character_lora_v3",
-    lossHistory: generateLossHistory(37),
-    configPath: "C:\\_AI\\_test_fresh_all_AI\\kohya_ss\\presets\\character_lora_v3.toml",
-    tensorboardLogDir: "C:\\_AI\\_test_fresh_all_AI\\training_data\\logs\\character_lora_v3",
-  },
-  {
-    id: "sim-2",
-    name: "Musubi Video Fine-tune - Walk Cycle",
-    type: "musubi-video",
-    tool: "musubi",
-    status: "running",
-    progress: 34,
-    epoch: 3,
-    totalEpochs: 8,
-    currentStep: 1360,
-    totalSteps: 4000,
-    loss: 0.1234,
-    learningRate: "5e-5",
-    batchSize: 1,
-    resolution: "512x512",
-    dataset: "walk_cycle_clips",
-    datasetSize: 48,
-    startTime: "45 min ago",
-    eta: "3h 20m",
-    gpuUsage: 95,
-    vramUsage: 28.4,
-    model: "Wan2.1 I2V 14B",
-    outputPath: "C:\\_AI\\_test_fresh_all_AI\\training_data\\output\\musubi_walk_cycle",
-    lossHistory: generateLossHistory(13),
-    configPath: "C:\\_AI\\_test_fresh_all_AI\\musubi-tuner\\configs\\walk_cycle.toml",
-    tensorboardLogDir: "C:\\_AI\\_test_fresh_all_AI\\training_data\\logs\\musubi_walk_cycle",
-  },
-  {
-    id: "sim-3",
-    name: "SDXL LoRA - Landscape Style",
-    type: "kohya-sdxl",
-    tool: "kohya",
-    status: "completed",
-    progress: 100,
-    epoch: 20,
-    totalEpochs: 20,
-    currentStep: 8000,
-    totalSteps: 8000,
-    loss: 0.0623,
-    learningRate: "1e-4",
-    batchSize: 2,
-    resolution: "1024x1024",
-    dataset: "landscape_photos",
-    datasetSize: 312,
-    startTime: "Yesterday",
-    eta: "Completed",
-    gpuUsage: 0,
-    vramUsage: 0,
-    model: "Illustrious XL v3",
-    outputPath: "C:\\_AI\\_test_fresh_all_AI\\training_data\\output\\landscape_lora",
-    lossHistory: generateLossHistory(80),
-    configPath: "C:\\_AI\\_test_fresh_all_AI\\kohya_ss\\presets\\landscape_sdxl.toml",
-    tensorboardLogDir: "C:\\_AI\\_test_fresh_all_AI\\training_data\\logs\\landscape_lora",
-  },
-  {
-    id: "sim-4",
-    name: "Video LoRA - Camera Pan",
-    type: "musubi-video",
-    tool: "musubi",
-    status: "failed",
-    progress: 15,
-    epoch: 1,
-    totalEpochs: 10,
-    currentStep: 600,
-    totalSteps: 4000,
-    loss: 0.4521,
-    learningRate: "1e-4",
-    batchSize: 1,
-    resolution: "512x512",
-    dataset: "camera_pan_clips",
-    datasetSize: 32,
-    startTime: "3 hrs ago",
-    eta: "Failed - OOM",
-    gpuUsage: 0,
-    vramUsage: 0,
-    model: "Wan2.1 I2V 14B",
-    outputPath: "C:\\_AI\\_test_fresh_all_AI\\training_data\\output\\camera_pan_lora",
-    lossHistory: generateLossHistory(6),
-    configPath: "C:\\_AI\\_test_fresh_all_AI\\musubi-tuner\\configs\\camera_pan.toml",
-    tensorboardLogDir: "C:\\_AI\\_test_fresh_all_AI\\training_data\\logs\\camera_pan_lora",
-  },
-];
+// --- Mock data extracted to mocks/training.mock.ts ---
 
 // ============================================================
 // PUBLIC API
@@ -251,23 +132,12 @@ export function getDataSource(): DataSource {
   return isTauriEnv() ? "process" : "simulated";
 }
 
-/**
- * Fetch all detected training jobs.
- * Browser: returns mock data.
- * Tauri: GET /api/training/jobs (scans processes + TensorBoard logs)
- */
-export async function getTrainingJobs(): Promise<TrainingJob[]> {
-  if (shouldTryBackend()) {
-    try {
-      const res = await fetchBackend(`${getApiBase()}/training/jobs`);
-      if (!res.ok) throw new Error("Failed to fetch jobs");
-      return await res.json();
-    } catch {
-      // Fall through to mock data
-    }
-  }
-  return [...mockJobs];
-}
+/** Fetch all detected training jobs. Tauri: scans processes + TensorBoard logs. */
+export const getTrainingJobs = createService<TrainingJob[]>({
+  backendPath: "/training/jobs",
+  mockData: () => [...mockTrainingJobs],
+  label: "trainingService.getTrainingJobs",
+});
 
 /**
  * Poll for updated training data (called every N seconds).
@@ -307,54 +177,20 @@ export async function pollTrainingUpdates(
   });
 }
 
-/**
- * Get GPU stats.
- * Browser: simulated RTX 5090 stats.
- * Tauri: GET /api/training/gpu (pynvml)
- */
-export async function getGpuStats(): Promise<GpuStats> {
-  if (shouldTryBackend()) {
-    try {
-      const res = await fetchBackend(`${getApiBase()}/training/gpu`);
-      if (!res.ok) throw new Error("GPU stats failed");
-      return await res.json();
-    } catch {
-      // Fall through
-    }
-  }
+/** Get GPU stats. Tauri: pynvml. */
+export const getGpuStats = createService<GpuStats>({
+  backendPath: "/training/gpu",
+  mockData: mockGpuStats,
+  label: "trainingService.getGpuStats",
+});
 
-  return {
-    name: "NVIDIA GeForce RTX 5090",
-    gpuUtilization: 89,
-    vramUsed: 24.6,
-    vramTotal: 32,
-    temperature: 72,
-    powerDraw: 385,
-    powerLimit: 575,
-  };
-}
-
-/**
- * Check which training-related services are running.
- * Browser: simulated.
- * Tauri: GET /api/training/services (psutil port scan)
- */
-export async function getServiceHealth(): Promise<ServiceHealth[]> {
-  if (shouldTryBackend()) {
-    try {
-      const res = await fetchHealth(`${getApiBase()}/training/services`);
-      if (!res.ok) throw new Error("Service health failed");
-      return await res.json();
-    } catch {
-      // Fall through
-    }
-  }
-
-  return [
-    { id: "kohya", name: TOOL_REGISTRY.kohya.name, running: true, port: TOOL_REGISTRY.kohya.port, url: TOOL_REGISTRY.kohya.url },
-    { id: "musubi", name: TOOL_REGISTRY.musubi.name, running: false },
-  ];
-}
+/** Check which training-related services are running. Tauri: psutil port scan. */
+export const getServiceHealth = createService<ServiceHealth[]>({
+  backendPath: "/training/services",
+  fetchPreset: "health",
+  mockData: mockServiceHealth,
+  label: "trainingService.getServiceHealth",
+});
 
 /**
  * Get the full loss history for a specific job.
@@ -434,13 +270,9 @@ export async function checkTensorBoardStatus(port = 6006): Promise<TensorBoardSt
     }
   }
 
-  // Browser path — simple HTTP ping
+  // Browser path — simple HTTP ping (3s timeout via fetchHealth)
   try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 3000);
-    const res = await fetch(`${url}/data/runs`, { signal: controller.signal });
-    clearTimeout(timeoutId);
-
+    const res = await fetchHealth(`${url}/data/runs`);
     if (res.ok) {
       return { state: "running", port, url, lastChecked: now };
     }

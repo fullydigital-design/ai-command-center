@@ -19,11 +19,21 @@ if getattr(sys, "_MEIPASS", None):
     # Keep relative imports and local resource lookups consistent.
     os.chdir(sys._MEIPASS)
 
+import logging
+
 import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from config import AI_ROOT, BACKEND_PORT, CORS_ORIGINS, LOG_LEVEL
+
+# ── Logging setup ────────────────────────────────────────────
+logging.basicConfig(
+    level=getattr(logging, LOG_LEVEL.upper(), logging.INFO),
+    format="%(asctime)s [%(name)s] %(levelname)s: %(message)s",
+    datefmt="%H:%M:%S",
+)
+logger = logging.getLogger("ai_command_center")
 from routers import ai_proxy, services, setup, system, tensorboard, training
 from routers.setup import cleanup_processes
 from routers.tensorboard import shutdown as tensorboard_shutdown
@@ -63,14 +73,14 @@ async def health():
 
 @app.on_event("startup")
 async def startup():
-    print("[AI Command Center] Backend starting on port 8000")
-    print(f"[AI Command Center] AI_ROOT = {AI_ROOT}")
-    print(f"[AI Command Center] Log level = {LOG_LEVEL}")
+    logger.info("Backend starting on port %d", BACKEND_PORT)
+    logger.info("AI_ROOT = %s", AI_ROOT)
+    logger.info("Log level = %s", LOG_LEVEL)
 
 
 @app.on_event("shutdown")
 async def shutdown():
-    print("[AI Command Center] Backend shutting down")
+    logger.info("Backend shutting down")
     gpu_shutdown()
     tensorboard_shutdown()
     cleanup_processes()
@@ -91,5 +101,5 @@ if __name__ == "__main__":
             except ValueError:
                 port = BACKEND_PORT
 
-    print(f"[AI Command Center] Starting standalone on {host}:{port}")
+    logger.info("Starting standalone on %s:%d", host, port)
     uvicorn.run(app, host=host, port=port)

@@ -60,8 +60,8 @@ Built for setups where you run your own stack and need a single interface to see
 | Layer | Status |
 |---|---|
 | Frontend | Complete — fully functional on mock data |
-| Backend | ~20% stubbed — FastAPI routing scaffolded, endpoints ready to wire up |
-| Desktop | Tauri wrapper scaffolded, inactive |
+| Backend | ~75% — GPU, system, services, AI proxy working; training detection and BAT runner partially stubbed |
+| Desktop | Tauri v2 wrapper scaffolded with sidecar spawning |
 
 The frontend degrades gracefully through three tiers: live backend → direct browser API calls → mock data. It works out of the box without a running backend.
 
@@ -80,7 +80,7 @@ To build the backend sidecar:
 ```bash
 cd src/app/backend/fastapi
 pip install -r requirements.txt
-uvicorn main:app --host 127.0.0.1 --port 8420 --reload
+uvicorn main:app --host 127.0.0.1 --port 8000 --reload
 ```
 
 ## License

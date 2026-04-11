@@ -33,6 +33,25 @@
 import { isTauriEnv, shouldTryBackend, getApiBase } from "./env";
 import { fetchBackend, fetchExternalAPI, fetchHealth, fetchStream } from "./fetchWithRetry";
 
+// ── Metadata & Error Tracking ────────────────────────────────
+
+/** Metadata about the last service resolution — for diagnostics & UI. */
+export interface ServiceMeta {
+  /** Which tier provided the data. */
+  source: "backend" | "live-browser" | "mock";
+  /** ISO timestamp when resolved. */
+  resolvedAt: string;
+  /** How long the winning tier took (ms). */
+  latencyMs: number;
+  /** Error from backend tier (if it failed). */
+  backendError?: string;
+  /** Error from live-browser tier (if it failed). */
+  liveError?: string;
+}
+
+/** Callback fired after each resolution with metadata. */
+export type OnResolve = (meta: ServiceMeta) => void;
+
 // ── Types ────────────────────────────────────────────────────
 
 /** Which fetch preset to use for the backend call. */
@@ -84,6 +103,18 @@ export interface ServiceConfig<T> {
    * running FastAPI in browser mode).
    */
   alwaysTryBackend?: boolean;
+
+  /**
+   * Label for console.warn logging when tiers fail.
+   * Example: "systemService.getGPUStats"
+   */
+  label?: string;
+
+  /**
+   * Optional callback fired after resolution with metadata about
+   * which tier resolved and any errors from failed tiers.
+   */
+  onResolve?: OnResolve;
 }
 
 /** Configuration for a POST/PUT/DELETE action. */
@@ -121,6 +152,12 @@ export interface ServiceActionConfig<TInput, TResult> {
    * Default: JSON.stringify(input).
    */
   bodySerializer?: (input: TInput) => string;
+
+  /** Label for console.warn logging when tiers fail. */
+  label?: string;
+
+  /** Optional callback fired after resolution with metadata. */
+  onResolve?: OnResolve;
 }
 
 // ── Helpers ──────────────────────────────────────────────────
@@ -181,9 +218,21 @@ export function createService<T>(config: ServiceConfig<T>): () => Promise<T> {
     fetchPreset = "backend",
     transform,
     alwaysTryBackend = false,
+    label,
+    onResolve,
   } = config;
 
   return async (): Promise<T> => {
+    const t0 = Date.now();
+    let backendError: string | undefined;
+    let liveError: string | undefined;
+
+    const emitMeta = (source: ServiceMeta["source"]) => {
+      if (onResolve) {
+        onResolve({ source, resolvedAt: new Date().toISOString(), latencyMs: Date.now() - t0, backendError, liveError });
+      }
+    };
+
     // ── Tier 1: Backend ──────────────────────────────────────
     if (alwaysTryBackend || shouldTryBackend()) {
       try {
@@ -192,10 +241,15 @@ export function createService<T>(config: ServiceConfig<T>): () => Promise<T> {
         const res = await fetcher(url);
         if (res.ok) {
           const json = await res.json();
+          emitMeta("backend");
           return transform ? transform(json) : (json as T);
         }
-      } catch {
-        // Fall through to next tier
+        backendError = `HTTP ${res.status}`;
+      } catch (e) {
+        backendError = e instanceof Error ? e.message : String(e);
+      }
+      if (backendError && label) {
+        console.warn(`[${label}] Backend failed: ${backendError}`);
       }
     }
 
@@ -203,13 +257,20 @@ export function createService<T>(config: ServiceConfig<T>): () => Promise<T> {
     if (liveFetcher) {
       try {
         const result = await liveFetcher();
-        if (result !== null) return result;
-      } catch {
-        // Fall through to mock
+        if (result !== null) {
+          emitMeta("live-browser");
+          return result;
+        }
+      } catch (e) {
+        liveError = e instanceof Error ? e.message : String(e);
+        if (label) {
+          console.warn(`[${label}] Live fetcher failed: ${liveError}`);
+        }
       }
     }
 
     // ── Tier 3: Mock data ────────────────────────────────────
+    emitMeta("mock");
     return resolve(mockData);
   };
 }
@@ -249,9 +310,20 @@ export function createServiceAction<TInput, TResult>(
     transform,
     alwaysTryBackend = false,
     bodySerializer,
+    label,
+    onResolve,
   } = config;
 
   return async (input: TInput): Promise<TResult> => {
+    const t0 = Date.now();
+    let backendError: string | undefined;
+
+    const emitMeta = (source: ServiceMeta["source"]) => {
+      if (onResolve) {
+        onResolve({ source, resolvedAt: new Date().toISOString(), latencyMs: Date.now() - t0, backendError });
+      }
+    };
+
     // ── Tier 1: Backend ──────────────────────────────────────
     if (alwaysTryBackend || shouldTryBackend()) {
       try {
@@ -268,14 +340,20 @@ export function createServiceAction<TInput, TResult>(
 
         if (res.ok) {
           const json = await res.json();
+          emitMeta("backend");
           return transform ? transform(json) : (json as TResult);
         }
-      } catch {
-        // Fall through to mock
+        backendError = `HTTP ${res.status}`;
+      } catch (e) {
+        backendError = e instanceof Error ? e.message : String(e);
+      }
+      if (backendError && label) {
+        console.warn(`[${label}] Backend failed: ${backendError}`);
       }
     }
 
     // ── Tier 3: Mock result ──────────────────────────────────
+    emitMeta("mock");
     if (mockDelay > 0) {
       await new Promise((r) => setTimeout(r, mockDelay));
     }
@@ -314,10 +392,22 @@ export function createServiceWithParam<TParam, TResult>(
     fetchPreset = "backend",
     transform,
     alwaysTryBackend = false,
+    label,
+    onResolve,
   } = config;
 
   return async (param: TParam): Promise<TResult> => {
-    // ── Tier 1: Backend ──────────��───────────────────────────
+    const t0 = Date.now();
+    let backendError: string | undefined;
+    let liveError: string | undefined;
+
+    const emitMeta = (source: ServiceMeta["source"]) => {
+      if (onResolve) {
+        onResolve({ source, resolvedAt: new Date().toISOString(), latencyMs: Date.now() - t0, backendError, liveError });
+      }
+    };
+
+    // ── Tier 1: Backend ──────────────────────────────────────
     if (alwaysTryBackend || shouldTryBackend()) {
       try {
         const path = backendPath(param);
@@ -326,10 +416,15 @@ export function createServiceWithParam<TParam, TResult>(
         const res = await fetcher(url);
         if (res.ok) {
           const json = await res.json();
+          emitMeta("backend");
           return transform ? transform(json) : (json as TResult);
         }
-      } catch {
-        // Fall through
+        backendError = `HTTP ${res.status}`;
+      } catch (e) {
+        backendError = e instanceof Error ? e.message : String(e);
+      }
+      if (backendError && label) {
+        console.warn(`[${label}] Backend failed: ${backendError}`);
       }
     }
 
@@ -337,13 +432,20 @@ export function createServiceWithParam<TParam, TResult>(
     if (liveFetcher) {
       try {
         const result = await liveFetcher(param);
-        if (result !== null) return result;
-      } catch {
-        // Fall through
+        if (result !== null) {
+          emitMeta("live-browser");
+          return result;
+        }
+      } catch (e) {
+        liveError = e instanceof Error ? e.message : String(e);
+        if (label) {
+          console.warn(`[${label}] Live fetcher failed: ${liveError}`);
+        }
       }
     }
 
     // ── Tier 3: Mock data ────────────────────────────────────
+    emitMeta("mock");
     return resolve(mockData);
   };
 }

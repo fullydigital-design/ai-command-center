@@ -3,8 +3,6 @@
 # ============================================================
 
 import os
-import shlex
-import socket
 import time
 from datetime import datetime
 from typing import List
@@ -19,23 +17,10 @@ except ModuleNotFoundError:
 
 from config import KOHYA_PORT, MUSUBI_PORT
 from utils.gpu import get_gpu_stats
+from utils.processes import check_port, extract_arg
 
 router = APIRouter()
 
-
-def _extract_arg(cmd: str, flag: str) -> str:
-    """Extract the value after a flag in a command string."""
-    try:
-        parts = shlex.split(cmd, posix=False)
-    except ValueError:
-        parts = cmd.split()
-
-    for i, part in enumerate(parts):
-        if part == flag and i + 1 < len(parts):
-            return parts[i + 1].strip('"').strip("'")
-        if part.startswith(f"{flag}="):
-            return part.split("=", 1)[1].strip('"').strip("'")
-    return ""
 
 
 def _detect_training_type(config: dict, tool: str) -> str:
@@ -162,9 +147,11 @@ def _build_job_from_toml(config_path: str, tool: str, process) -> dict | None:
 
     lr_raw = config.get("learning_rate", 0)
     try:
-        learning_rate = float(lr_raw)
+        lr_float = float(lr_raw)
+        # Format as scientific notation string to match TS type (e.g. "1e-4")
+        learning_rate = f"{lr_float:.0e}" if lr_float > 0 else "0"
     except (TypeError, ValueError):
-        learning_rate = 0.0
+        learning_rate = "0"
 
     batch_raw = config.get("train_batch_size", 1)
     try:
@@ -177,6 +164,11 @@ def _build_job_from_toml(config_path: str, tool: str, process) -> dict | None:
     except Exception:
         start_time = ""
 
+    # Calculate epoch from step progress and total epochs
+    epoch = 0
+    if total_epochs > 0 and total_steps > 0 and current_step > 0:
+        epoch = min(total_epochs, int((current_step / total_steps) * total_epochs) + 1)
+
     return {
         "id": str(process.pid),
         "name": str(config.get("output_name", "Unknown")),
@@ -184,12 +176,11 @@ def _build_job_from_toml(config_path: str, tool: str, process) -> dict | None:
         "tool": tool,
         "status": "running",
         "progress": progress,
-        "epoch": 0,
+        "epoch": epoch,
         "totalEpochs": total_epochs,
         "currentStep": current_step,
         "totalSteps": total_steps,
         "loss": current_loss,
-        "currentLoss": current_loss,
         "learningRate": learning_rate,
         "batchSize": batch_size,
         "resolution": resolution,
@@ -205,17 +196,8 @@ def _build_job_from_toml(config_path: str, tool: str, process) -> dict | None:
         "gpuUsage": gpu.get("gpuUtilization", 0),
         "vramUsage": gpu.get("vramUsed", 0),
         "pid": process.pid,
-        "dataSource": "process",
     }
 
-
-def _check_port(host: str, port: int, timeout: float = 0.1) -> bool:
-    """Check if a TCP port is listening."""
-    try:
-        with socket.create_connection((host, port), timeout=timeout):
-            return True
-    except (ConnectionRefusedError, TimeoutError, OSError):
-        return False
 
 
 @router.get("/jobs")
@@ -238,10 +220,10 @@ async def get_training_jobs():
         tool = None
 
         if "accelerate" in cmd_lower and "train_network" in cmd_lower:
-            config_path = _extract_arg(cmd, "--config_file")
+            config_path = extract_arg(cmd, "--config_file")
             tool = "kohya"
         elif "musubi" in cmd_lower and "train" in cmd_lower:
-            config_path = _extract_arg(cmd, "--config_file")
+            config_path = extract_arg(cmd, "--config_file")
             tool = "musubi"
 
         if tool and config_path and os.path.isfile(config_path):
@@ -259,7 +241,7 @@ async def get_full_loss_history(job_id: str):
         proc = psutil.Process(int(job_id))
         cmdline = proc.cmdline()
         cmd = " ".join(cmdline)
-        config_path = _extract_arg(cmd, "--config_file")
+        config_path = extract_arg(cmd, "--config_file")
 
         if config_path and os.path.isfile(config_path):
             with open(config_path, "rb") as f:
@@ -280,13 +262,32 @@ async def get_training_service_health():
         {
             "id": "kohya",
             "name": "Kohya SS",
-            "running": _check_port("127.0.0.1", KOHYA_PORT),
+            "running": check_port("127.0.0.1", KOHYA_PORT),
             "port": KOHYA_PORT,
         },
         {
             "id": "musubi",
             "name": "Musubi Tuner",
-            "running": _check_port("127.0.0.1", MUSUBI_PORT),
+            "running": check_port("127.0.0.1", MUSUBI_PORT),
             "port": MUSUBI_PORT,
         },
     ]
+
+
+@router.get("/gpu")
+async def get_training_gpu():
+    """Return GPU stats in the GpuStats shape expected by TrainingPage.
+
+    Response shape matches TS GpuStats:
+      {name, gpuUtilization, vramUsed, vramTotal, temperature, powerDraw, powerLimit}
+    """
+    return get_gpu_stats()
+
+
+@router.get("/poll")
+async def poll_training_updates():
+    """Polling endpoint — returns the same data as /jobs.
+
+    Frontend calls this every N seconds for real-time updates.
+    """
+    return await get_training_jobs()

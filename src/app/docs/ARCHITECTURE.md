@@ -1,6 +1,6 @@
 # AI Command Center -- Architecture Reference
 
-> For Cursor AI. The React UI is 100% done. Your job is the Python backend.
+> The React UI is 100% done. Remaining work is the Python backend.
 
 ---
 
@@ -12,11 +12,11 @@
  |                                                              |
  |  +---------------------+     +----------------------------+ |
  |  |  React Frontend     |---->|  FastAPI Backend            | |
- |  |  (Vite dev :5173)   |<----|  Port 8420                  | |
+ |  |  (Vite dev :5173)   |<----|  Port 8000                  | |
  |  |                     |     |                              | |
- |  |  - 4 pages          |     |  - System stats (psutil)     | |
- |  |  - 9 services       |     |  - GPU stats (pynvml)        | |
- |  |  - 48 shadcn/ui     |     |  - Process mgmt (subprocess) | |
+ |  |  - 5 pages          |     |  - System stats (psutil)     | |
+ |  |  - 17 service files |     |  - GPU stats (pynvml)        | |
+ |  |  - 6 shadcn/ui      |     |  - Process mgmt (subprocess) | |
  |  |  - SSE terminal     |     |  - TensorBoard (tbparse)     | |
  |  |  - AI subsystem     |     |  - BAT wrapper (subprocess)  | |
  |  |  - Mock data layer  |     |  - AI proxy (OpenRouter)     | |
@@ -50,10 +50,10 @@
 src/
 +-- app/
 |   +-- App.tsx                         # Root -- <RouterProvider>
-|   +-- routes.ts                       # 4 routes (see below)
+|   +-- routes.ts                       # 5 routes (see below)
 |   |
 |   +-- components/
-|   |   +-- Layout.tsx                  # Sidebar nav (4 items + logo)
+|   |   +-- Layout.tsx                  # Sidebar nav (5 items + logo)
 |   |   +-- CommandCenter.tsx           # Unified Command Center -- 6 tabs:
 |   |   |                               #   Overview (health bar, GPU monitor,
 |   |   |                               #   processes, perf charts, actionable
@@ -81,8 +81,6 @@ src/
 |   |   +-- SettingsPage.tsx            # Settings -- API keys (OpenRouter,
 |   |   |                               #   GitHub, HuggingFace, CivitAI),
 |   |   |                               #   AI model selector, local paths, theme
-|   |   +-- GitHubPage.tsx              # [UNUSED] Legacy -- superseded by CommunityHub
-|   |   |
 |   |   +-- ai/                         # SHARED AI COMPONENT LIBRARY
 |   |   |   +-- index.ts               # Barrel export
 |   |   |   +-- AIAssistant.tsx         # Split-panel: content editor + chat + download
@@ -91,16 +89,14 @@ src/
 |   |   |   +-- SuggestionsPanel.tsx    # Categorized AI suggestion cards
 |   |   |   +-- DownloadButton.tsx      # File download + DownloadPanel
 |   |   |
-|   |   +-- figma/                      # Figma Make runtime components
-|   |   |   +-- ImageWithFallback.tsx   # Protected -- do not modify
-|   |   |
-|   |   +-- ui/                         # 48 shadcn/ui components
+|   |   +-- ui/                         # 6 shadcn/ui + utility components
 |   |       +-- TerminalOutput.tsx      # Reusable SSE terminal display
-|   |       +-- button.tsx, card.tsx, tabs.tsx, popover.tsx, ...
+|   |       +-- button.tsx, badge.tsx, scroll-area.tsx, skeleton.tsx, sonner.tsx
 |   |       +-- utils.ts               # cn() helper
 |   |
-|   +-- services/                       # SERVICE ABSTRACTION LAYER (9 files)
+|   +-- services/                       # SERVICE ABSTRACTION LAYER (17 files)
 |   |   +-- types.ts                    # Shared TypeScript types (contract)
+|   |   +-- packageTypes.ts            # Package manifest types
 |   |   +-- aiService.ts               # OpenRouter chat/stream + system prompts
 |   |   +-- settingsService.ts          # Settings CRUD (localStorage)
 |   |   +-- apiKeys.ts                  # Shared API key reader + FetchMeta
@@ -111,6 +107,12 @@ src/
 |   |   +-- githubService.ts            # GitHub API (repos, trending)
 |   |   +-- huggingfaceService.ts       # HuggingFace API (models, papers)
 |   |   +-- civitaiService.ts           # CivitAI API (models, images)
+|   |   +-- createService.ts           # Generic 3-tier service factory
+|   |   +-- env.ts                     # Environment detection (Tauri vs browser)
+|   |   +-- fetchWithRetry.ts          # Resilient fetch with retry & timeout
+|   |   +-- healthMonitor.ts           # Centralized health check service
+|   |   +-- packageService.ts          # Package manifest parsing & install
+|   |   +-- toolsRegistry.ts           # Centralized tool metadata registry
 |   |
 |   +-- backend/                        # SCRIPTS (copy to AI root)
 |   |   +-- RTX5090_FULL_SETUP.bat      # 16-option setup/update/cleanup menu
@@ -139,6 +141,7 @@ src/
 | `/` | `CommandCenter` | Unified Command Center -- system monitoring, services, updates, cleanup, optimization, ScriptLab |
 | `/training` | `TrainingPage` | Training Monitor + AI Config Optimizer |
 | `/community` | `CommunityHubPage` | Community Hub -- GitHub/HF/CivitAI feeds |
+| `/packages` | `PackageManagerPage` | Package manager -- manifest parsing, installation orchestration |
 | `/settings` | `SettingsPage` | Settings -- API keys, paths, models |
 
 ---
@@ -206,7 +209,7 @@ function isTauriEnv(): boolean {
 }
 
 function getApiBase(): string {
-  return "http://127.0.0.1:8420/api";
+  return "http://127.0.0.1:8000/api";
 }
 
 export async function getSomeData(): Promise<SomeType[]> {
@@ -232,7 +235,7 @@ export async function getSomeData(): Promise<SomeType[]> {
 **Priority chain:** Tauri backend -> Live browser API -> Mock data
 **Key insight:** The frontend needs ZERO changes when you add the backend. Just implement the FastAPI endpoints and `isTauriEnv()` starts returning `true` when wrapped in Tauri, or the frontend can simply detect the backend is reachable.
 
-> **For local dev without Tauri:** Change `isTauriEnv()` to also check if the FastAPI backend is reachable. Or just have the services call `fetch("http://127.0.0.1:8420/api/...")` directly and fall through to mock on failure. The pattern already handles this.
+> **For local dev without Tauri:** Change `isTauriEnv()` to also check if the FastAPI backend is reachable. Or just have the services call `fetch("http://127.0.0.1:8000/api/...")` directly and fall through to mock on failure. The pattern already handles this.
 
 ---
 
@@ -356,7 +359,7 @@ CPU = "AMD Ryzen 9 9950X"
 CORES = 16  # 32 threads
 RAM = 86  # GB DDR5 (close to 96GB capacity)
 AI_ROOT = r"C:\_AI\_test_fresh_all_AI"
-BACKEND_PORT = 8420
+BACKEND_PORT = 8000
 ```
 
 ## Service Ports (never change these)
@@ -368,5 +371,5 @@ KOHYA_PORT = 7860
 MUSUBI_PORT = 7870  # CLI, no web UI
 OLLAMA_PORT = 11434
 TENSORBOARD_PORT = 6006
-BACKEND_PORT = 8420
+BACKEND_PORT = 8000
 ```

@@ -4,6 +4,7 @@
 
 import asyncio
 import json
+import logging
 import os
 import shutil
 import subprocess
@@ -17,6 +18,8 @@ from fastapi.responses import StreamingResponse
 from sse_starlette.sse import EventSourceResponse
 
 from config import AI_ROOT, PATH_AUDIT_PY, SERVICE_CONFIGS, SETUP_BAT
+
+logger = logging.getLogger("ai_command_center.setup")
 
 router = APIRouter()
 
@@ -422,6 +425,6 @@ def cleanup_processes():
             except Exception:
                 try:
                     proc.kill()
-                except Exception:
-                    pass
+                except Exception as kill_err:
+                    logger.warning("Failed to kill setup process %s: %s", stream_id, kill_err)
     _running_processes.clear()

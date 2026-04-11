@@ -2,11 +2,15 @@
 # routers/ai_proxy.py - OpenRouter AI proxy (optional)
 # ============================================================
 
+import logging
+
 import aiohttp
 from fastapi import APIRouter, Request
 from sse_starlette.sse import EventSourceResponse
 
 from config import DEFAULT_AI_MODEL, OPENROUTER_API_KEY
+
+logger = logging.getLogger("ai_command_center.ai_proxy")
 
 router = APIRouter()
 
@@ -26,7 +30,8 @@ async def ai_chat(request: Request):
 
     try:
         body = await request.json()
-    except Exception:
+    except Exception as e:
+        logger.warning("Invalid JSON in AI chat request: %s", e)
         return {"error": "Invalid JSON body"}
 
     messages = body.get("messages", [])
@@ -62,8 +67,10 @@ async def ai_chat(request: Request):
                         return {"error": f"OpenRouter returned {resp.status}: {error_msg}"}
                     return data
         except aiohttp.ClientError as e:
+            logger.warning("OpenRouter connection failed: %s", e)
             return {"error": f"Failed to reach OpenRouter: {str(e)[:200]}"}
         except Exception as e:
+            logger.error("AI proxy error: %s", e)
             return {"error": f"Proxy error: {str(e)[:200]}"}
 
     async def stream_generator():
@@ -102,8 +109,10 @@ async def ai_chat(request: Request):
                             yield {"data": data_str}
 
         except aiohttp.ClientError as e:
+            logger.warning("OpenRouter stream error: %s", e)
             yield {"data": f'{{"error": "Stream error: {str(e)[:200]}"}}'}
         except Exception as e:
+            logger.error("AI stream proxy error: %s", e)
             yield {"data": f'{{"error": "Stream proxy error: {str(e)[:200]}"}}'}
 
     return EventSourceResponse(stream_generator())

@@ -17,6 +17,7 @@ from fastapi import APIRouter
 
 from config import AI_ROOT, CLEANUP_TARGETS, MODELS_PATH, REPOS_TO_TRACK
 from utils.gpu import get_gpu_stats as _get_gpu_stats
+from utils.processes import get_cpu_stats as _get_cpu_stats
 
 router = APIRouter()
 
@@ -30,17 +31,7 @@ async def get_gpu_stats():
 @router.get("/cpu")
 async def get_cpu_stats():
     """Return real CPU + RAM stats via psutil."""
-    cpu_freq = psutil.cpu_freq()
-    vm = psutil.virtual_memory()
-    return {
-        "usage": psutil.cpu_percent(interval=0.1),
-        "frequency": round(cpu_freq.current, 0) if cpu_freq else 0,
-        "cores": psutil.cpu_count(logical=False) or 0,
-        "threads": psutil.cpu_count(logical=True) or 0,
-        "ramTotal": round(vm.total / 1e9, 1),
-        "ramUsed": round(vm.used / 1e9, 1),
-        "ramPercent": vm.percent,
-    }
+    return _get_cpu_stats()
 
 
 def _to_float(value, default: float = 0.0) -> float:
@@ -160,7 +151,6 @@ async def get_gpu_stats_alias():
         "powerW": _to_int(base.get("powerDraw", 0)),
         "powerLimitW": _to_int(base.get("powerLimit", 575), 575),
         "fanPercent": fan_percent,
-        "clockMHz": clock_gpu,
         "clockGpuMHz": clock_gpu,
         "clockMemMHz": clock_mem,
         "clockMaxGpuMHz": clock_max_gpu,
@@ -417,14 +407,50 @@ def _empty_storage():
     }
 
 
+# Color palette for disk breakdown categories
+_DISK_COLORS = {
+    "Checkpoints": "#6366F1",
+    "LoRA": "#8B5CF6",
+    "VAE": "#EC4899",
+    "ControlNet": "#14B8A6",
+    "Other": "#64748B",
+}
+
+
+@router.get("/disk-breakdown")
+async def get_disk_breakdown():
+    """Frontend alias: return flat DiskCategory[] matching TS type.
+
+    Response shape: [{label, sizeGB, color, count, path}]
+    """
+    raw = await get_storage_breakdown()
+    categories = raw.get("categories", []) if isinstance(raw, dict) else []
+
+    return [
+        {
+            "label": cat.get("name", "Unknown"),
+            "sizeGB": cat.get("size_gb", 0.0),
+            "color": _DISK_COLORS.get(cat.get("name", ""), "#64748B"),
+            "count": cat.get("count", 0),
+            "path": str(MODELS_PATH / cat.get("name", "").lower().replace(" ", "_")),
+        }
+        for cat in categories
+    ]
+
+
 @router.get("/cleanup/scan")
 async def scan_cleanup():
-    """Scan cache directories and return items with real sizes."""
+    """Scan cache directories and return items with real sizes.
+
+    Response shape matches TS CleanupItem:
+      {id, name, path, size, sizeBytes, type, safe, selected, description?}
+    """
     results = []
 
     for target in CLEANUP_TARGETS:
         tid = target["id"]
         name = target["name"]
+        description = target.get("description", f"Clean {name}")
 
         if "cmd" in target:
             size_bytes, cache_path = _pip_cache_size()
@@ -433,9 +459,12 @@ async def scan_cleanup():
                     "id": tid,
                     "name": name,
                     "path": cache_path,
-                    "size_bytes": int(size_bytes),
-                    "size_display": _format_size(int(size_bytes)),
-                    "category": "cache",
+                    "size": _format_size(int(size_bytes)),
+                    "sizeBytes": int(size_bytes),
+                    "type": "cache",
+                    "safe": True,
+                    "selected": False,
+                    "description": description,
                 }
             )
 
@@ -448,24 +477,30 @@ async def scan_cleanup():
                     "id": tid,
                     "name": name,
                     "path": f"{root}/{pattern}",
-                    "size_bytes": int(size_bytes),
-                    "size_display": _format_size(int(size_bytes)),
-                    "category": "cache",
+                    "size": _format_size(int(size_bytes)),
+                    "sizeBytes": int(size_bytes),
+                    "type": "cache",
+                    "safe": True,
+                    "selected": False,
+                    "description": description,
                 }
             )
 
         elif "path" in target:
             p = Path(target["path"])
             size_bytes = _dir_size(p) if p.exists() else 0
-            category = "temp" if tid.endswith("temp") else "cache"
+            item_type = "temp" if tid.endswith("temp") else "cache"
             results.append(
                 {
                     "id": tid,
                     "name": name,
                     "path": str(p),
-                    "size_bytes": int(size_bytes),
-                    "size_display": _format_size(int(size_bytes)),
-                    "category": category,
+                    "size": _format_size(int(size_bytes)),
+                    "sizeBytes": int(size_bytes),
+                    "type": item_type,
+                    "safe": True,
+                    "selected": False,
+                    "description": description,
                 }
             )
 
@@ -474,8 +509,12 @@ async def scan_cleanup():
 
 @router.post("/cleanup/execute")
 async def execute_cleanup(body: dict):
-    """Delete selected cleanup items and return freed bytes."""
-    ids = body.get("ids", [])
+    """Delete selected cleanup items and return freed bytes.
+
+    Accepts both {item_ids: [...]} (frontend) and {ids: [...]} (legacy).
+    Response shape matches TS: {success: bool, freedMb: number}
+    """
+    ids = body.get("item_ids") or body.get("ids", [])
     freed = 0
     deleted: list[str] = []
 
@@ -542,7 +581,8 @@ async def execute_cleanup(body: dict):
         except Exception:
             continue
 
-    return {"deleted": deleted, "freed_bytes": int(freed)}
+    freed_mb = round(freed / (1024 * 1024), 1)
+    return {"success": len(deleted) > 0, "freedMb": freed_mb}
 
 
 @router.get("/cleanup")
@@ -705,6 +745,50 @@ async def run_update(software_id: str):
         return {"id": software_id, "status": "error", "message": str(e)[:200]}
 
 
+@router.get("/software")
+async def get_software():
+    """Frontend alias: return SoftwareItem[] matching TS type.
+
+    Wraps /updates/check and adds missing fields:
+      {name, currentVersion, latestVersion, hasUpdate, category, lastChecked, autoUpdate, critical}
+    """
+    raw = await check_updates()
+    now = time.strftime("%Y-%m-%dT%H:%M:%S")
+
+    return [
+        {
+            "name": item.get("name", item.get("id", "Unknown")),
+            "currentVersion": item.get("currentVersion", "unknown"),
+            "latestVersion": item.get("latestVersion", "unknown"),
+            "hasUpdate": item.get("hasUpdate", False),
+            "category": "AI Tools",
+            "lastChecked": now,
+            "autoUpdate": False,
+            "critical": item.get("hasUpdate", False),
+        }
+        for item in raw
+    ]
+
+
+@router.post("/software/update")
+async def software_update_alias(body: dict):
+    """Frontend alias: accepts {name: "comfyui"} and proxies to run_update."""
+    software_id = body.get("name", "")
+    if not software_id:
+        return {"success": False, "message": "Missing 'name' in request body"}
+    result = await run_update(software_id)
+    return result
+
+
+@router.post("/optimizations/apply")
+async def optimizations_apply_alias(body: dict):
+    """Frontend alias: accepts {id: "tf32"} and proxies to apply_optimization."""
+    optimization_id = body.get("id", "")
+    if not optimization_id:
+        return {"applied": False, "message": "Missing 'id' in request body"}
+    return await apply_optimization(optimization_id)
+
+
 OPTIMIZATIONS = [
     {
         "id": "tf32",
@@ -771,14 +855,27 @@ def _extract_setx_value(command: str) -> str:
     return ""
 
 
+_OPT_GROUP_TO_CATEGORY = {
+    "GPU": "gpu",
+    "AI Stack": "ai-stack",
+    "System": "system",
+    "Memory": "memory",
+    "Storage": "storage",
+}
+
+
 @router.get("/optimizations")
 async def get_optimizations():
-    """Check env vars and return optimization status."""
+    """Check env vars and return optimization status.
+
+    Response shape matches TS OptimizationItem:
+      {id, title, desc, status, impact, category, howTo?, currentValue?, recommendedValue?}
+    """
     results = []
     for opt in OPTIMIZATIONS:
         env_key = opt["env_key"]
         current_value = os.environ.get(env_key, "")
-        expected = opt["env_value"]
+        expected = opt["env_value"] or _extract_setx_value(opt["command"])
 
         if expected:
             applied = current_value == expected
@@ -788,11 +885,14 @@ async def get_optimizations():
         results.append(
             {
                 "id": opt["id"],
-                "group": opt["group"],
-                "name": opt["name"],
-                "description": opt["description"],
-                "applied": applied,
-                "command": opt["command"],
+                "title": opt["name"],
+                "desc": opt["description"],
+                "status": "enabled" if applied else "pending",
+                "impact": "High" if opt["group"] == "GPU" else "Medium",
+                "category": _OPT_GROUP_TO_CATEGORY.get(opt["group"], "system"),
+                "howTo": opt["command"],
+                "currentValue": current_value or "(not set)",
+                "recommendedValue": expected or "(any)",
             }
         )
 
@@ -858,3 +958,101 @@ async def apply_optimization(optimization_id: str):
             "applied": False,
             "message": str(e)[:200],
         }
+
+
+# ============================================================
+# Environment Variables
+# ============================================================
+
+# AI-relevant env vars to check — (key, required, description)
+_ENV_VARS_TO_CHECK = [
+    ("CUDA_VISIBLE_DEVICES", False, "GPU device selection for CUDA workloads"),
+    ("PYTORCH_CUDA_ALLOC_CONF", False, "PyTorch CUDA memory allocator config"),
+    ("NVIDIA_TF32_OVERRIDE", False, "TF32 mode for Ampere+ GPUs"),
+    ("HF_HOME", False, "HuggingFace cache directory"),
+    ("HF_HUB_ENABLE_HF_TRANSFER", False, "Fast HuggingFace downloads"),
+    ("TRITON_CACHE_DIR", False, "Triton compilation cache directory"),
+    ("COMFYUI_PATH", False, "ComfyUI installation path"),
+    ("PATH", True, "System PATH"),
+    ("VIRTUAL_ENV", False, "Active Python virtual environment"),
+    ("CONDA_DEFAULT_ENV", False, "Active Conda environment"),
+]
+
+
+@router.get("/env")
+async def get_env_vars():
+    """Return AI-relevant environment variables with validation.
+
+    Response shape matches TS EnvVar: {key, value, ok, required, description?}
+    """
+    results = []
+    for key, required, description in _ENV_VARS_TO_CHECK:
+        value = os.environ.get(key, "")
+        ok = bool(value) if required else True
+        results.append(
+            {
+                "key": key,
+                "value": value or "(not set)",
+                "ok": ok,
+                "required": required,
+                "description": description,
+            }
+        )
+    return results
+
+
+# ============================================================
+# Health Score
+# ============================================================
+
+
+@router.get("/health-score")
+async def get_health_score():
+    """Calculate a system health score (0-100) based on current state.
+
+    Response shape: {score: number}
+    """
+    score = 100
+
+    # GPU temperature penalty
+    gpu = _get_gpu_stats()
+    temp = int(gpu.get("temperature", 0) or 0)
+    if temp > 85:
+        score -= 20
+    elif temp > 75:
+        score -= 10
+
+    # RAM pressure penalty
+    vm = psutil.virtual_memory()
+    if vm.percent > 90:
+        score -= 20
+    elif vm.percent > 80:
+        score -= 10
+
+    # Disk space penalty
+    try:
+        drive_root = AI_ROOT.anchor if AI_ROOT.anchor else "C:\\"
+        disk = psutil.disk_usage(drive_root)
+        disk_free_gb = disk.free / (1024 ** 3)
+        if disk_free_gb < 10:
+            score -= 20
+        elif disk_free_gb < 50:
+            score -= 10
+    except Exception:
+        pass
+
+    # VRAM pressure penalty
+    vram_used = float(gpu.get("vramUsed", 0) or 0)
+    vram_total = float(gpu.get("vramTotal", 1) or 1)
+    vram_pct = (vram_used / vram_total) * 100 if vram_total > 0 else 0
+    if vram_pct > 95:
+        score -= 15
+    elif vram_pct > 85:
+        score -= 5
+
+    # Env optimization bonus (check if key optimizations are set)
+    for key in ("PYTORCH_CUDA_ALLOC_CONF", "NVIDIA_TF32_OVERRIDE"):
+        if os.environ.get(key):
+            score += 5
+
+    return {"score": max(0, min(100, score))}

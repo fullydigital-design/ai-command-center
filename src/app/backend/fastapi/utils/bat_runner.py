@@ -5,14 +5,10 @@
 # and stdout streaming for the TerminalOutput component.
 #
 # See /src/app/docs/BAT_INTEGRATION.md for full details.
-#
-# TODO for Cursor:
-#   - Uncomment the real subprocess implementation
-#   - Handle multi-step actions (Full Reset needs confirmation)
 # ============================================================
 
+import subprocess
 import time
-import json
 from datetime import datetime
 from pathlib import Path
 
@@ -45,10 +41,7 @@ def launch_bat(bat_path: Path, menu_key: str):
     """
     Launch the BAT file and send a menu keystroke.
     Returns the subprocess.Popen handle.
-
-    TODO: Uncomment when running on real Windows system:
-
-    import subprocess
+    """
     proc = subprocess.Popen(
         f'cmd /c "{bat_path}"',
         stdin=subprocess.PIPE,
@@ -59,11 +52,9 @@ def launch_bat(bat_path: Path, menu_key: str):
         text=True,
         bufsize=1,
     )
-    proc.stdin.write(f"{menu_key}\\n")
+    proc.stdin.write(f"{menu_key}\n")
     proc.stdin.flush()
     return proc
-    """
-    return None
 
 
 def launch_bat_multistep(bat_path: Path, keystrokes: list[tuple[str, float]]):
@@ -77,10 +68,7 @@ def launch_bat_multistep(bat_path: Path, keystrokes: list[tuple[str, float]]):
 
     Example:
         launch_bat_multistep(bat, [("R", 1.0), ("1", 0.5), ("RESET", 0)])
-
-    TODO: Uncomment when running on real Windows system:
-
-    import subprocess, time
+    """
     proc = subprocess.Popen(
         f'cmd /c "{bat_path}"',
         stdin=subprocess.PIPE,
@@ -92,10 +80,8 @@ def launch_bat_multistep(bat_path: Path, keystrokes: list[tuple[str, float]]):
         bufsize=1,
     )
     for key, delay in keystrokes:
-        proc.stdin.write(f"{key}\\n")
+        proc.stdin.write(f"{key}\n")
         proc.stdin.flush()
         if delay > 0:
             time.sleep(delay)
     return proc
-    """
-    return None

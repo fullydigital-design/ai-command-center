@@ -11,6 +11,7 @@
 // ============================================================
 
 import { TOOL_REGISTRY, ALL_TOOL_IDS, type ToolMeta } from "./toolsRegistry";
+import { fetchWithRetry } from "./fetchWithRetry";
 
 // ---- Types ----
 
@@ -72,18 +73,18 @@ export async function pingTool(meta: ToolMeta): Promise<ToolHealthResult> {
   const start = performance.now();
 
   try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), meta.healthTimeout);
-
-    const opts: RequestInit = { signal: controller.signal };
+    const opts: RequestInit = {};
     if (meta.healthMethod === "POST") {
       opts.method = "POST";
       opts.headers = { "Content-Type": "application/json" };
       opts.body = "{}";
     }
 
-    const res = await fetch(meta.healthEndpoint, opts);
-    clearTimeout(timeoutId);
+    const res = await fetchWithRetry(meta.healthEndpoint, {
+      ...opts,
+      timeout: meta.healthTimeout,
+      noRetry: true,
+    });
     const pingMs = Math.round(performance.now() - start);
     const now = new Date().toLocaleTimeString();
 

@@ -52,7 +52,7 @@
 2. Service layer: checkTensorBoardStatus(), launchTensorBoard(), stopTensorBoard()
 3. TensorBoardButton (status-aware: green running / gray stopped) in job detail header
 4. TensorBoardPanel with Launch/Stop/Open controls + copy command fallback
-5. Cleaned up all 4 documentation files for Cursor handoff
+5. Cleaned up all 4 documentation files
 6. Created INDEX.md, ARCHITECTURE.md, BACKEND_TASKS.md, BAT_INTEGRATION.md
 
 ### Design Decisions
@@ -125,10 +125,10 @@
 
 ---
 
-## Cursor Handoff Status
+## Project Status (as of April 2026)
 
 ### Frontend: 100% Complete
-- 6 pages, 9 service files, 48 shadcn/ui components, 6 AI components
+- 4 pages, 9 service files, 48 shadcn/ui components, 6 AI components
 - All pages render with simulated data
 - AI features work client-side via OpenRouter (no backend needed)
 - Service abstraction layer auto-switches mock -> live when backend detected
@@ -137,7 +137,8 @@
 - ScriptLab: 5 sub-modes (Script Generator with 22 custom nodes, BAT Analyzer, Kohya Config, Musubi Config, AI Chat)
 - TrainingPage: 2 tabs (Monitor + AI Optimizer with TOML editor, VRAM estimator, presets, chat)
 
-### Backend: 0% -- Implementation Needed
-- See BACKEND_TASKS.md for 9 ordered tasks (3 HIGH, 3 MEDIUM, 3 LOW)
-- See BAT_INTEGRATION.md for BAT wrapper details
-- See ARCHITECTURE.md for full API endpoint mapping + AI subsystem architecture
+### Backend: ~75% Complete
+- All 6 routers implemented (system, training, tensorboard, services, setup, ai_proxy)
+- GPU monitoring, system stats, service health, AI proxy fully working
+- Training job detection and BAT runner partially stubbed
+- See BACKEND_TASKS.md for remaining tasks

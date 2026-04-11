@@ -3,6 +3,7 @@
 # ============================================================
 
 import importlib.util
+import logging
 import os
 import subprocess
 import sys
@@ -13,6 +14,9 @@ import psutil
 from fastapi import APIRouter
 
 from config import TENSORBOARD_PORT
+from utils.processes import extract_arg
+
+logger = logging.getLogger("ai_command_center.tensorboard")
 
 router = APIRouter()
 
@@ -20,17 +24,6 @@ router = APIRouter()
 _tb_process: subprocess.Popen | None = None
 _tb_logdir: str | None = None
 _tb_port: int = TENSORBOARD_PORT
-
-
-def _extract_arg(cmd: str, flag: str) -> str:
-    """Extract the value after a flag in a command string."""
-    parts = cmd.split()
-    for i, part in enumerate(parts):
-        if part == flag and i + 1 < len(parts):
-            return parts[i + 1].strip('"').strip("'")
-        if part.startswith(f"{flag}="):
-            return part.split("=", 1)[1].strip('"').strip("'")
-    return ""
 
 
 def _find_running_tensorboard() -> dict[str, Any] | None:
@@ -59,8 +52,8 @@ def _find_running_tensorboard() -> dict[str, Any] | None:
             continue
 
         if "tensorboard" in cmd.lower() and "--logdir" in cmd:
-            logdir = _extract_arg(cmd, "--logdir")
-            port_str = _extract_arg(cmd, "--port")
+            logdir = extract_arg(cmd, "--logdir")
+            port_str = extract_arg(cmd, "--port")
             port = int(port_str) if str(port_str).isdigit() else TENSORBOARD_PORT
             return {
                 "running": True,
@@ -86,8 +79,8 @@ def _kill_tensorboard():
         except Exception:
             try:
                 _tb_process.kill()
-            except Exception:
-                pass
+            except Exception as kill_err:
+                logger.warning("Failed to kill TensorBoard process: %s", kill_err)
         finally:
             _tb_process = None
 
