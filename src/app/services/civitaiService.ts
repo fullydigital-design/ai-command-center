@@ -209,7 +209,35 @@ function formatFileSize(kb: number): string {
   return `${kb.toFixed(0)} KB`;
 }
 
-function mapCivitApiModel(m: any): CivitModel {
+interface CivitApiModel {
+  id: number;
+  name?: string;
+  description?: string;
+  type?: string;
+  tags?: string[];
+  creator?: { username?: string; image?: string };
+  stats?: {
+    downloadCount?: number;
+    favoriteCount?: number;
+    commentCount?: number;
+    rating?: number;
+    ratingCount?: number;
+  };
+  modelVersions?: Array<{
+    id?: number;
+    name?: string;
+    baseModel?: string;
+    trainedWords?: string[];
+    files?: Array<{
+      name?: string;
+      sizeKB?: number;
+      metadata?: { fp?: string; size?: string; format?: string };
+    }>;
+    images?: Array<{ url?: string; nsfw?: boolean | string; width?: number; height?: number }>;
+  }>;
+}
+
+function mapCivitApiModel(m: CivitApiModel): CivitModel {
   const stats = m.stats || {};
   const type = inferCivitType(m.type || "Checkpoint");
   const latestVersion = m.modelVersions?.[0] || {};

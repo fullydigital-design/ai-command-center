@@ -299,19 +299,27 @@ function generateMockManifest(userPrompt: string): string {
   return JSON.stringify(manifest, null, 2);
 }
 
+interface MockManifestPreview {
+  category: string;
+  name: string;
+  actions: Array<{ label: string; description: string }>;
+  files: Array<{ path: string; type: string }>;
+  configs?: Array<{ label: string; description: string }>;
+}
+
 function generateMockResponse(userPrompt: string): { text: string; manifest: string } {
   const manifest = generateMockManifest(userPrompt);
-  const parsed = JSON.parse(manifest);
+  const parsed = JSON.parse(manifest) as MockManifestPreview;
 
   const text = `I've generated a **${parsed.category}** package called **"${parsed.name}"** with the following structure:
 
 **Actions (${parsed.actions.length}):**
-${parsed.actions.map((a: any) => `- **${a.label}** — ${a.description}`).join("\n")}
+${parsed.actions.map((a) => `- **${a.label}** — ${a.description}`).join("\n")}
 
 **Files (${parsed.files.length}):**
-${parsed.files.map((f: any) => `- \`${f.path}\` (${f.type})`).join("\n")}
+${parsed.files.map((f) => `- \`${f.path}\` (${f.type})`).join("\n")}
 
-${parsed.configs?.length > 0 ? `**Configs (${parsed.configs.length}):**\n${parsed.configs.map((c: any) => `- **${c.label}** — ${c.description}`).join("\n")}` : ""}
+${parsed.configs && parsed.configs.length > 0 ? `**Configs (${parsed.configs.length}):**\n${parsed.configs.map((c) => `- **${c.label}** — ${c.description}`).join("\n")}` : ""}
 
 The manifest is ready in the preview panel. You can:
 - **Download** it as a .json file

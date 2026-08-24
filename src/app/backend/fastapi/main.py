@@ -76,6 +76,8 @@ async def startup():
     logger.info("Backend starting on port %d", BACKEND_PORT)
     logger.info("AI_ROOT = %s", AI_ROOT)
     logger.info("Log level = %s", LOG_LEVEL)
+    # Reap any zombie BAT processes from a previous unclean shutdown.
+    cleanup_processes()
 
 
 @app.on_event("shutdown")

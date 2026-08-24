@@ -33,8 +33,10 @@ TRAINING_DATA_PATH = AI_ROOT / "training_data"
 BACKEND_HOST = os.environ.get("BACKEND_HOST", "127.0.0.1")
 BACKEND_PORT = int(os.environ.get("BACKEND_PORT", "8000"))
 
-# CORS origins (frontend dev + Tauri dev)
-CORS_ORIGINS = [
+# CORS origins (frontend dev + Tauri dev). Override with CORS_ORIGINS env var
+# as a comma-separated list. In frozen/PyInstaller builds the default is
+# locked down to Tauri webviews only.
+_DEFAULT_CORS_DEV = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
     "http://localhost:1420",
@@ -42,6 +44,15 @@ CORS_ORIGINS = [
     "tauri://localhost",
     "https://tauri.localhost",
 ]
+_DEFAULT_CORS_PROD = [
+    "tauri://localhost",
+    "https://tauri.localhost",
+]
+_cors_env = os.environ.get("CORS_ORIGINS", "").strip()
+if _cors_env:
+    CORS_ORIGINS = [o.strip() for o in _cors_env.split(",") if o.strip()]
+else:
+    CORS_ORIGINS = _DEFAULT_CORS_PROD if IS_FROZEN else _DEFAULT_CORS_DEV
 
 # ── Service Ports (never change — hardcoded in frontend) ──────
 

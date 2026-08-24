@@ -999,7 +999,9 @@ export function QuickLauncher() {
               const d = JSON.parse(e.data);
               const code = d.exit_code ?? -1;
               setProcessStates((prev) => ({ ...prev, [toolId]: { ...prev[toolId], status: code === 0 ? "stopped" : "error", error: code !== 0 ? `Exited with code ${code}` : undefined, output: [...prev[toolId].output, `[EXIT] Process exited with code ${code}`] } }));
-            } catch {}
+            } catch (parseErr) {
+              console.warn("QuickLauncher: failed to parse exit event", parseErr);
+            }
             es.close();
             delete sseRef.current[toolId];
           });
@@ -1007,8 +1009,10 @@ export function QuickLauncher() {
         } else {
           setProcessStates((prev) => ({ ...prev, [toolId]: { ...prev[toolId], status: "running" } }));
         }
-      } catch (err: any) {
-        setProcessStates((prev) => ({ ...prev, [toolId]: { ...prev[toolId], status: "error", error: err.message || "Failed to launch", output: [...prev[toolId].output, `[ERROR] ${err.message}`] } }));
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : "Failed to launch";
+        setProcessStates((prev) => ({ ...prev, [toolId]: { ...prev[toolId], status: "error", error: msg, output: [...prev[toolId].output, `[ERROR] ${msg}`] } }));
+        toast.error(`${tool.name}: ${msg}`);
       }
     } else {
       // Browser mode — simulated demo launch
@@ -1050,7 +1054,10 @@ export function QuickLauncher() {
           method: "POST", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ tool_id: toolId }),
         });
-      } catch {}
+      } catch (stopErr) {
+        console.warn(`QuickLauncher: stop request failed for ${toolId}`, stopErr);
+        toast.warning(`Could not reach backend while stopping ${tool.name}`);
+      }
     }
     if (sseRef.current[toolId]) {
       sseRef.current[toolId].close();

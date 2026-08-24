@@ -33,9 +33,24 @@ export interface ToolHealthResult {
 
 // ---- Extractor configs per tool (rich data from health response) ----
 
+interface HealthPayload {
+  system?: {
+    comfyui_version?: string;
+    python_version?: string;
+    pytorch_version?: string;
+  };
+  devices?: Array<{
+    name?: string;
+    vram_total?: number;
+    vram_free?: number;
+  }>;
+  models?: unknown[];
+  [key: string]: unknown;
+}
+
 interface Extractors {
-  extractVersion?: (data: any) => string;
-  extractInfo?: (data: any) => Record<string, string>;
+  extractVersion?: (data: HealthPayload) => string;
+  extractInfo?: (data: HealthPayload) => Record<string, string>;
 }
 
 const EXTRACTORS: Partial<Record<string, Extractors>> = {
@@ -95,7 +110,7 @@ export async function pingTool(meta: ToolMeta): Promise<ToolHealthResult> {
 
     if (ext && (res.ok || res.type === "opaque")) {
       try {
-        const data = await res.json();
+        const data = (await res.json()) as HealthPayload;
         if (ext.extractVersion) {
           const v = ext.extractVersion(data);
           if (v) detectedVersion = v;

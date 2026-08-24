@@ -2,9 +2,11 @@
 # routers/training.py - Training job detection + loss history
 # ============================================================
 
+import logging
 import os
 import time
 from datetime import datetime
+from pathlib import Path
 from typing import List
 
 import psutil
@@ -15,11 +17,25 @@ try:
 except ModuleNotFoundError:
     import tomli as tomllib
 
-from config import KOHYA_PORT, MUSUBI_PORT
+from config import AI_ROOT, KOHYA_PORT, MUSUBI_PORT
 from utils.gpu import get_gpu_stats
 from utils.processes import check_port, extract_arg
 
+logger = logging.getLogger("ai_command_center.training")
+
 router = APIRouter()
+
+
+def _is_safe_config_path(config_path: str) -> bool:
+    """Ensure the TOML config path resolves under AI_ROOT to prevent traversal."""
+    if not config_path:
+        return False
+    try:
+        resolved = Path(config_path).resolve()
+        root = AI_ROOT.resolve()
+        return resolved.is_file() and resolved.is_relative_to(root)
+    except (OSError, ValueError):
+        return False
 
 
 
@@ -73,10 +89,14 @@ def _read_tb_loss(log_dir: str) -> list:
 
 def _build_job_from_toml(config_path: str, tool: str, process) -> dict | None:
     """Build a TrainingJob dict from a TOML config file + process info."""
+    if not _is_safe_config_path(config_path):
+        logger.warning("Rejected TOML path outside AI_ROOT: %s", config_path)
+        return None
     try:
         with open(config_path, "rb") as f:
             config = tomllib.load(f)
-    except Exception:
+    except Exception as e:
+        logger.exception("Failed to parse TOML config %s: %s", config_path, e)
         return None
 
     training_type = _detect_training_type(config, tool)
@@ -226,7 +246,7 @@ async def get_training_jobs():
             config_path = extract_arg(cmd, "--config_file")
             tool = "musubi"
 
-        if tool and config_path and os.path.isfile(config_path):
+        if tool and config_path and _is_safe_config_path(config_path):
             job = _build_job_from_toml(config_path, tool, proc)
             if job:
                 jobs.append(job)
@@ -243,14 +263,16 @@ async def get_full_loss_history(job_id: str):
         cmd = " ".join(cmdline)
         config_path = extract_arg(cmd, "--config_file")
 
-        if config_path and os.path.isfile(config_path):
+        if config_path and _is_safe_config_path(config_path):
             with open(config_path, "rb") as f:
                 config = tomllib.load(f)
             log_dir = str(config.get("logging_dir", "") or "")
             if log_dir and os.path.exists(log_dir):
                 return _read_tb_loss(log_dir)
-    except (psutil.NoSuchProcess, psutil.AccessDenied, ValueError, Exception):
+    except (psutil.NoSuchProcess, psutil.AccessDenied, ValueError):
         pass
+    except Exception as e:
+        logger.exception("Failed to read loss history for job %s: %s", job_id, e)
 
     return []
 

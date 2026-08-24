@@ -43,11 +43,11 @@ def launch_bat(bat_path: Path, menu_key: str):
     Returns the subprocess.Popen handle.
     """
     proc = subprocess.Popen(
-        f'cmd /c "{bat_path}"',
+        ["cmd", "/c", str(bat_path)],
         stdin=subprocess.PIPE,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
-        shell=True,
+        shell=False,
         creationflags=subprocess.CREATE_NEW_PROCESS_GROUP,
         text=True,
         bufsize=1,
@@ -70,11 +70,11 @@ def launch_bat_multistep(bat_path: Path, keystrokes: list[tuple[str, float]]):
         launch_bat_multistep(bat, [("R", 1.0), ("1", 0.5), ("RESET", 0)])
     """
     proc = subprocess.Popen(
-        f'cmd /c "{bat_path}"',
+        ["cmd", "/c", str(bat_path)],
         stdin=subprocess.PIPE,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
-        shell=True,
+        shell=False,
         creationflags=subprocess.CREATE_NEW_PROCESS_GROUP,
         text=True,
         bufsize=1,

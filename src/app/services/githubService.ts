@@ -166,12 +166,15 @@ async function fetchLiveGitHubRepos(): Promise<GitHubRepo[] | null> {
         if (reset) rateLimitReset = new Date(parseInt(reset) * 1000).toISOString();
       }
 
-      const data = await res.json();
+      const data: unknown = await res.json();
       // Starred endpoint returns array directly; search endpoint returns { items: [...] }
-      const items: any[] = Array.isArray(data) ? data : (data.items || []);
+      const items: unknown[] = Array.isArray(data)
+        ? data
+        : ((data as { items?: unknown[] } | null)?.items ?? []);
       const isStarred = token ? i === 0 : false;
 
-      for (const r of items) {
+      for (const raw of items) {
+        const r = raw as GitHubApiRepo;
         const key = r.full_name;
         if (!key || seen.has(key)) continue;
         seen.add(key);
@@ -258,7 +261,21 @@ function timeAgo(dateStr: string): string {
   return `${Math.floor(days / 30)}mo ago`;
 }
 
-function mapGitHubApiRepo(r: any, installed: boolean, trending: boolean): GitHubRepo {
+interface GitHubApiRepo {
+  id: number | string;
+  name: string;
+  full_name: string;
+  description?: string | null;
+  stargazers_count?: number;
+  forks_count?: number;
+  open_issues_count?: number;
+  language?: string | null;
+  updated_at?: string;
+  pushed_at?: string;
+  topics?: string[];
+}
+
+function mapGitHubApiRepo(r: GitHubApiRepo, installed: boolean, trending: boolean): GitHubRepo {
   const topics: string[] = r.topics || [];
   return {
     id: String(r.id),
@@ -269,7 +286,7 @@ function mapGitHubApiRepo(r: any, installed: boolean, trending: boolean): GitHub
     forks: formatStars(r.forks_count),
     openIssues: r.open_issues_count,
     language: r.language || "Unknown",
-    languageColor: LANG_COLORS[r.language] || "#888888",
+    languageColor: LANG_COLORS[r.language || ""] || "#888888",
     lastUpdate: timeAgo(r.updated_at || r.pushed_at),
     lastCommitMsg: `Latest push: ${timeAgo(r.pushed_at || r.updated_at)}`,
     releaseTag: "",
@@ -280,7 +297,7 @@ function mapGitHubApiRepo(r: any, installed: boolean, trending: boolean): GitHub
     pinned: false,
     topics: topics.slice(0, 6),
     commitsBehind: 0,
-    updatedAtISO: r.updated_at || r.pushed_at,
+    updatedAtISO: r.updated_at || r.pushed_at || "",
   };
 }
 

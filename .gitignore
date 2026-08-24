@@ -18,6 +18,7 @@ src-tauri/binaries/*.exe
 # Internal / AI context files
 guidelines/
 CLAUDE.md
+.claude/
 
 # Temp/debug files
 _tmp_*

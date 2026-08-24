@@ -167,9 +167,12 @@ export function CommandCenter() {
   }, [bridge.pendingTool]);
 
   // --- Load all data ---
+  // Uses Promise.allSettled so one failing endpoint (e.g. /env when the
+  // backend is offline) doesn't prevent the rest of the dashboard from
+  // rendering. Each setter is called only when its promise fulfils.
   const loadData = useCallback(async () => {
     setLoading(true);
-    const [s, gpu, proc, disk, sw, cl, env, opt, score] = await Promise.all([
+    const results = await Promise.allSettled([
       getSystemSpecs(),
       getGPUStats(),
       getAIProcesses(),
@@ -180,15 +183,21 @@ export function CommandCenter() {
       getOptimizations(),
       getHealthScore(),
     ]);
-    setSpecs(s);
-    setGpuStats(gpu);
-    setProcesses(proc);
-    setDiskBreakdown(disk);
-    setSoftware(sw);
-    setCleanup(cl);
-    setEnvVars(env);
-    setOptimizations(opt);
-    setHealthScore(score);
+    const setters = [
+      setSpecs, setGpuStats, setProcesses, setDiskBreakdown,
+      setSoftware, setCleanup, setEnvVars, setOptimizations, setHealthScore,
+    ] as const;
+    const labels = [
+      "systemSpecs", "gpuStats", "aiProcesses", "diskBreakdown",
+      "softwareVersions", "cleanupItems", "envVars", "optimizations", "healthScore",
+    ];
+    results.forEach((r, i) => {
+      if (r.status === "fulfilled") {
+        (setters[i] as (v: unknown) => void)(r.value);
+      } else {
+        console.warn(`CommandCenter: failed to load ${labels[i]}`, r.reason);
+      }
+    });
     setLoading(false);
   }, []);
 

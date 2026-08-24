@@ -40,8 +40,13 @@ export function shouldTryBackend(): boolean {
 
 /**
  * Base URL for the FastAPI backend.
+ * Override with VITE_API_BASE at build time (e.g. VITE_API_BASE=http://host:9000/api).
  */
 export function getApiBase(): string {
+  const fromEnv = import.meta.env.VITE_API_BASE;
+  if (typeof fromEnv === "string" && fromEnv.trim()) {
+    return fromEnv.replace(/\/+$/, "");
+  }
   return "http://127.0.0.1:8000/api";
 }
 

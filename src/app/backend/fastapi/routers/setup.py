@@ -13,8 +13,7 @@ import time
 from datetime import datetime
 from pathlib import Path
 
-from fastapi import APIRouter, Query
-from fastapi.responses import StreamingResponse
+from fastapi import APIRouter, HTTPException, Query
 from sse_starlette.sse import EventSourceResponse
 
 from config import AI_ROOT, PATH_AUDIT_PY, SERVICE_CONFIGS, SETUP_BAT
@@ -23,8 +22,11 @@ logger = logging.getLogger("ai_command_center.setup")
 
 router = APIRouter()
 
-# Track running BAT processes by stream_id
+# Track running BAT processes by stream_id.
+# All mutations MUST go through `_processes_lock` to avoid races
+# between concurrent /run, /stream, and cleanup callers.
 _running_processes: dict[str, dict] = {}
+_processes_lock = asyncio.Lock()
 
 # BAT menu action -> keystroke mapping
 ACTION_TO_KEY = {
@@ -129,14 +131,17 @@ async def run_setup(body: dict):
     action = body.get("action", "")
     menu_key = ACTION_TO_KEY.get(action)
     if not menu_key:
-        return {"error": f"Unknown action: {action}"}
+        raise HTTPException(status_code=400, detail=f"Unknown action: {action}")
 
     stream_id = f"setup-{action}-{int(time.time())}"
 
+    # SETUP_BAT missing is surfaced via the SSE stream so the UI gets a
+    # consistent error channel for this long-running operation.
     if not SETUP_BAT.exists():
-        _running_processes[stream_id] = {
-            "error": f"Setup script not found: {SETUP_BAT}",
-        }
+        async with _processes_lock:
+            _running_processes[stream_id] = {
+                "error": f"Setup script not found: {SETUP_BAT}",
+            }
         return {"stream_id": stream_id}
 
     try:
@@ -145,11 +150,11 @@ async def run_setup(body: dict):
             creationflags = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
 
         proc = subprocess.Popen(
-            f'cmd /c "{SETUP_BAT}"',
+            ["cmd", "/c", str(SETUP_BAT)],
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
-            shell=True,
+            shell=False,
             creationflags=creationflags,
             text=True,
             bufsize=1,
@@ -159,9 +164,12 @@ async def run_setup(body: dict):
             proc.stdin.write(f"{menu_key}\n")
             proc.stdin.flush()
 
-        _running_processes[stream_id] = {"proc": proc}
+        async with _processes_lock:
+            _running_processes[stream_id] = {"proc": proc}
     except Exception as e:
-        _running_processes[stream_id] = {"error": str(e)}
+        logger.exception("Failed to launch setup BAT: %s", e)
+        async with _processes_lock:
+            _running_processes[stream_id] = {"error": str(e)}
 
     return {"stream_id": stream_id}
 
@@ -171,7 +179,8 @@ async def stream_output(stream_id: str = Query(...)):
     """SSE endpoint - streams BAT stdout line by line."""
 
     async def event_generator():
-        entry = _running_processes.get(stream_id)
+        async with _processes_lock:
+            entry = _running_processes.get(stream_id)
 
         if not entry:
             yield {
@@ -194,7 +203,8 @@ async def stream_output(stream_id: str = Query(...)):
                 "event": "done",
                 "data": json.dumps({"exitCode": 1}),
             }
-            _running_processes.pop(stream_id, None)
+            async with _processes_lock:
+                _running_processes.pop(stream_id, None)
             return
 
         proc = entry.get("proc")
@@ -235,7 +245,8 @@ async def stream_output(stream_id: str = Query(...)):
                 "data": json.dumps({"text": str(e)}),
             }
         finally:
-            _running_processes.pop(stream_id, None)
+            async with _processes_lock:
+                _running_processes.pop(stream_id, None)
 
     return EventSourceResponse(event_generator())
 

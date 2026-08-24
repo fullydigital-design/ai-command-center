@@ -2,7 +2,7 @@
   "$schema": "https://raw.githubusercontent.com/tauri-apps/tauri/dev/crates/tauri-cli/schema.json",
   "productName": "AI Command Center",
   "version": "0.1.0",
-  "identifier": "com.ai-command-center.desktop",
+  "identifier": "com.fullydigital.ai-command-center",
   "build": {
     "frontendDist": "../dist",
     "devUrl": "http://localhost:5173",

@@ -4,9 +4,10 @@
 
 import logging
 import os
+import shlex
 import subprocess
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 
 from config import SERVICE_CONFIGS
 from utils.processes import check_port, find_pid_on_port, kill_process_tree
@@ -69,7 +70,7 @@ async def start_service(service_id: str):
     """Start a service using its configured launcher."""
     cfg = SERVICE_CONFIGS.get(service_id)
     if not cfg:
-        return {"message": f"Unknown service: {service_id}", "service_id": service_id}
+        raise HTTPException(status_code=404, detail=f"Unknown service: {service_id}")
 
     name = SERVICE_NAMES.get(service_id, service_id)
     port = cfg.get("port")
@@ -87,7 +88,7 @@ async def start_service(service_id: str):
     if launch_bat:
         bat_path = str(launch_bat)
         if not os.path.isfile(bat_path):
-            return {"message": f"Launch script not found: {bat_path}", "service_id": service_id}
+            raise HTTPException(status_code=404, detail=f"Launch script not found: {bat_path}")
 
         cwd_value = cfg.get("path")
         cwd = str(cwd_value) if cwd_value else "."
@@ -99,8 +100,8 @@ async def start_service(service_id: str):
 
         try:
             subprocess.Popen(
-                f'cmd /c "{bat_path}"',
-                shell=True,
+                ["cmd", "/c", bat_path],
+                shell=False,
                 cwd=cwd,
                 creationflags=flags,
             )
@@ -109,7 +110,8 @@ async def start_service(service_id: str):
                 "service_id": service_id,
             }
         except Exception as e:
-            return {"message": f"Failed to start {name}: {e}", "service_id": service_id}
+            logger.exception("Failed to start %s", name)
+            raise HTTPException(status_code=500, detail=f"Failed to start {name}: {e}")
 
     if cmd_str:
         flags = 0
@@ -118,9 +120,14 @@ async def start_service(service_id: str):
             flags |= getattr(subprocess, "CREATE_NEW_CONSOLE", 0)
 
         try:
+            # cmd_str is expected as a list from config; fall back to shlex.split for legacy string form
+            if isinstance(cmd_str, (list, tuple)):
+                argv = [str(a) for a in cmd_str]
+            else:
+                argv = shlex.split(str(cmd_str), posix=(os.name != "nt"))
             subprocess.Popen(
-                str(cmd_str),
-                shell=True,
+                argv,
+                shell=False,
                 creationflags=flags,
             )
             return {
@@ -128,9 +135,10 @@ async def start_service(service_id: str):
                 "service_id": service_id,
             }
         except Exception as e:
-            return {"message": f"Failed to start {name}: {e}", "service_id": service_id}
+            logger.exception("Failed to start %s", name)
+            raise HTTPException(status_code=500, detail=f"Failed to start {name}: {e}")
 
-    return {"message": f"No launch method configured for {name}", "service_id": service_id}
+    raise HTTPException(status_code=400, detail=f"No launch method configured for {name}")
 
 
 @router.post("/{service_id}/stop")
@@ -138,13 +146,13 @@ async def stop_service(service_id: str):
     """Stop a service by killing the process on its port."""
     cfg = SERVICE_CONFIGS.get(service_id)
     if not cfg:
-        return {"message": f"Unknown service: {service_id}", "service_id": service_id}
+        raise HTTPException(status_code=404, detail=f"Unknown service: {service_id}")
 
     name = SERVICE_NAMES.get(service_id, service_id)
     port = cfg.get("port")
 
     if not port:
-        return {"message": f"{name} has no port - cannot stop", "service_id": service_id}
+        raise HTTPException(status_code=400, detail=f"{name} has no port - cannot stop")
 
     port = int(port)
     if not check_port("127.0.0.1", port):
