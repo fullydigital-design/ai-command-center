@@ -42,6 +42,11 @@ exit 0, live `/system/cleanup/scan` returns the correct contract. Do not undo an
   response fields away from the frontend contract (`systemService.ts` + mocks are
   authoritative); deleting `__init__.py`; touching the watchdog without cause.
 - Commits allowed per completed task (conventional messages). Never push.
+- **Use up to 6 subagents (max 6).** Recommended split — one per task: T1 (binaries),
+  T2 (harness), T3 (BAT gate), T4+T5 (battery passes), T6 (report). You may also run
+  tasks sequentially yourself if subagents add no value for a step — but anything a
+  subagent reports must be re-verified by you with verbatim evidence before it enters
+  the report.
 - ≤ 6 subagents; re-verify every subagent claim with verbatim evidence yourself.
 - Per issue: verify → fix → re-verify, max 3 iterations, then BLOCKED with root cause.
 - Process hygiene: port 8000 must be free (netstat) before and after EVERY server/exe
