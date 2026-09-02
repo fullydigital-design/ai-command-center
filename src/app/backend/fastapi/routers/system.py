@@ -459,9 +459,9 @@ async def scan_cleanup():
                     "id": tid,
                     "name": name,
                     "path": cache_path,
-                    "size_bytes": int(size_bytes),
-                    "size_display": _format_size(int(size_bytes)),
-                    "category": "cache",
+                    "size": _format_size(int(size_bytes)),
+                    "sizeBytes": int(size_bytes),
+                    "type": "cache",
                     "safe": True,
                     "selected": False,
                     "description": description,
@@ -477,9 +477,9 @@ async def scan_cleanup():
                     "id": tid,
                     "name": name,
                     "path": f"{root}/{pattern}",
-                    "size_bytes": int(size_bytes),
-                    "size_display": _format_size(int(size_bytes)),
-                    "category": "cache",
+                    "size": _format_size(int(size_bytes)),
+                    "sizeBytes": int(size_bytes),
+                    "type": "cache",
                     "safe": True,
                     "selected": False,
                     "description": description,
@@ -489,15 +489,15 @@ async def scan_cleanup():
         elif "path" in target:
             p = Path(target["path"])
             size_bytes = _dir_size(p) if p.exists() else 0
-            item_category = "temp" if tid.endswith("temp") else "cache"
+            item_type = "temp" if tid.endswith("temp") else "cache"
             results.append(
                 {
                     "id": tid,
                     "name": name,
                     "path": str(p),
-                    "size_bytes": int(size_bytes),
-                    "size_display": _format_size(int(size_bytes)),
-                    "category": item_category,
+                    "size": _format_size(int(size_bytes)),
+                    "sizeBytes": int(size_bytes),
+                    "type": item_type,
                     "safe": True,
                     "selected": False,
                     "description": description,
