@@ -1,3 +1,5 @@
+> SUPERSEDED by doc/V1_FINAL_REPORT.md
+
 # V1_REPAIR_REPORT.md — Production verification (owner-verified)
 
 ## 0. Ground Truth block (raw) + TRUE elapsed time
