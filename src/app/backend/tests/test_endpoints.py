@@ -221,6 +221,7 @@ class TestResult:
     errors: List[str] = field(default_factory=list)
     response_time_ms: float = 0
     note: str = ""
+    skipped: bool = False
 
 
 def _get(path: str) -> requests.Response:
@@ -428,8 +429,8 @@ def test_service_start():
     resp = _post("/services/comfyui/start", body={"name": "comfyui"})
     if resp.status_code == 404 and "Launch script not found" in resp.text:
         return TestResult(name="Service Start", group="services", method="POST",
-                        url=f"{BASE_URL}/services/comfyui/start", passed=False,
-                        status_code=404, note="SKIP: script not found (environment-dependent)")
+                        url=f"{BASE_URL}/services/comfyui/start", passed=True,
+                        status_code=404, note="SKIP: script not found (environment-dependent)", skipped=True)
     return run_test("Service Start", "services", "POST", "/services/comfyui/start",
                     validator=lambda d, l: _check_keys(d, {"message": str}, l))
 
@@ -518,14 +519,19 @@ def check_backend_reachable() -> bool:
 
 def print_result(result: TestResult, verbose: bool = False):
     """Print a single test result."""
-    icon = "✅" if result.passed else "❌"
+    if result.skipped:
+        icon = "⏭"
+    elif result.passed:
+        icon = "✅"
+    else:
+        icon = "❌"
     time_str = f"{result.response_time_ms:.0f}ms"
     print(f"  {icon}  {result.name:<25} {result.method:<5} {result.status_code:<4} {time_str}")
 
     if verbose and result.note:
         print(f"       ℹ️  {result.note}")
 
-    if not result.passed:
+    if not result.passed and not result.skipped:
         for err in result.errors:
             print(f"       ⚠  {err}")
 
@@ -565,19 +571,26 @@ def main():
         print_result(result, verbose=args.verbose)
 
     # ── Summary ────────────────────────────────────────────────
-    passed = sum(1 for r in results if r.passed)
-    failed = sum(1 for r in results if not r.passed)
+    passed = sum(1 for r in results if r.passed and not r.skipped)
+    skipped = sum(1 for r in results if r.skipped)
+    failed = sum(1 for r in results if not r.passed and not r.skipped)
     total = len(results)
     avg_ms = sum(r.response_time_ms for r in results) / max(total, 1)
 
     print(f"\n{'=' * 55}")
-    print(f"  📊 Results: {passed}/{total} passed, {failed} failed")
+    print(f"  📊 Results: {passed} passed, {skipped} skipped, {failed} failed")
     print(f"  ⏱  Average response time: {avg_ms:.0f}ms")
+
+    if skipped > 0:
+        print(f"\n  ⏭  Skipped tests:")
+        for r in results:
+            if r.skipped:
+                print(f"     - {r.name}: {r.note}")
 
     if failed > 0:
         print(f"\n  ❌ Failed tests:")
         for r in results:
-            if not r.passed:
+            if not r.passed and not r.skipped:
                 print(f"     - {r.name}: {r.errors[0] if r.errors else 'unknown'}")
 
     print()
