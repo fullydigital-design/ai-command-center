@@ -126,9 +126,11 @@ def validate_cleanup_item(data: dict, label: str = "CleanupItem") -> List[str]:
         "id": str,
         "name": str,
         "path": str,
-        "size_bytes": int,
-        "size_display": str,
-        "category": str,
+        "size": str,
+        "sizeBytes": int,
+        "type": str,
+        "safe": bool,
+        "selected": bool,
     }, label)
 
 
@@ -146,11 +148,11 @@ def validate_update_item(data: dict, label: str = "UpdateItem") -> List[str]:
 def validate_optimization(data: dict, label: str = "Optimization") -> List[str]:
     return _check_keys(data, {
         "id": str,
-        "group": str,
-        "name": str,
-        "description": str,
-        "applied": bool,
-        "command": str,
+        "title": str,
+        "desc": str,
+        "status": str,
+        "impact": str,
+        "category": str,
     }, label)
 
 
@@ -339,8 +341,8 @@ def test_cleanup_scan():
 @register_test
 def test_cleanup_execute():
     return run_test("Cleanup Execute", "system", "POST", "/system/cleanup/execute",
-                    body={"ids": ["pip_cache"]},
-                    validator=lambda d, l: _check_keys(d, {"deleted": list, "freed_bytes": int}, l))
+                    body={"item_ids": ["pip_cache"]},
+                    validator=lambda d, l: _check_keys(d, {"success": bool, "freedMb": (int, float)}, l))
 
 
 @register_test
@@ -422,6 +424,12 @@ def test_services_status():
 
 @register_test
 def test_service_start():
+    """Skip if launch script not found (environment-dependent)."""
+    resp = _post("/services/comfyui/start", body={"name": "comfyui"})
+    if resp.status_code == 404 and "Launch script not found" in resp.text:
+        return TestResult(name="Service Start", group="services", method="POST",
+                        url=f"{BASE_URL}/services/comfyui/start", passed=False,
+                        status_code=404, note="SKIP: script not found (environment-dependent)")
     return run_test("Service Start", "services", "POST", "/services/comfyui/start",
                     validator=lambda d, l: _check_keys(d, {"message": str}, l))
 
