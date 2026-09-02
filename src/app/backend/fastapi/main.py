@@ -10,6 +10,8 @@
 
 import os
 import sys
+import threading
+import time
 
 # -- PyInstaller support --------------------------------------
 # When running as a PyInstaller onefile bundle, sys._MEIPASS is the
@@ -71,6 +73,33 @@ async def health():
     }
 
 
+def _start_parent_watchdog() -> None:
+    """Exit the sidecar when the desktop app dies, even on force-kill.
+
+    Tauri kills the child gracefully on normal exit (RunEvent::Exit), but a
+    crashed or taskkill-ed app bypasses that path. The app passes its own PID
+    via --app-pid; a daemon thread watches it and hard-exits this process when
+    it disappears — the sidecar must never outlive the app.
+    """
+    parent_pid = os.environ.get("AI_PARENT_PID", "")
+    if not parent_pid.isdigit():
+        return
+    import psutil
+
+    def _watch() -> None:
+        try:
+            parent = psutil.Process(int(parent_pid))
+        except psutil.NoSuchProcess:
+            return
+        while parent.is_running():
+            time.sleep(2)
+        logger.warning("Desktop app died — stopping sidecar")
+        cleanup_processes()
+        os._exit(0)
+
+    threading.Thread(target=_watch, name="ai-parent-watchdog", daemon=True).start()
+
+
 @app.on_event("startup")
 async def startup():
     logger.info("Backend starting on port %d", BACKEND_PORT)
@@ -78,6 +107,7 @@ async def startup():
     logger.info("Log level = %s", LOG_LEVEL)
     # Reap any zombie BAT processes from a previous unclean shutdown.
     cleanup_processes()
+    _start_parent_watchdog()
 
 
 @app.on_event("shutdown")
@@ -102,6 +132,8 @@ if __name__ == "__main__":
                 port = int(args[i + 1])
             except ValueError:
                 port = BACKEND_PORT
+        elif arg == "--app-pid" and i + 1 < len(args):
+            os.environ["AI_PARENT_PID"] = args[i + 1]
 
     logger.info("Starting standalone on %s:%d", host, port)
     uvicorn.run(app, host=host, port=port)

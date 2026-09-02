@@ -18,10 +18,13 @@ pub fn run() {
 
             // The sidecar binary name must match tauri.conf.json -> bundle.externalBin
             // Tauri resolves "fastapi-backend" to "binaries/fastapi-backend-{target-triple}.exe"
+            // Pass the app's PID so the sidecar watchdog exits if the app is
+            // force-killed (RunEvent cleanup does not run in that case).
+            let app_pid = std::process::id().to_string();
             let sidecar_cmd = shell
                 .sidecar("fastapi-backend")
                 .expect("failed to create sidecar command")
-                .args(["--host", "127.0.0.1", "--port", "8000"]);
+                .args(["--host", "127.0.0.1", "--port", "8000", "--app-pid", app_pid.as_str()]);
 
             let (mut rx, child) = sidecar_cmd
                 .spawn()
