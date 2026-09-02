@@ -23,7 +23,7 @@ PyInstaller.__main__.run(
         "main.py",
         "--onefile",
         "--name",
-        "fastapi-backend",
+        f"fastapi-backend-{TARGET_TRIPLE}",
         "--add-data",
         "config.py;.",
         "--add-data",

@@ -443,7 +443,7 @@ async def scan_cleanup():
     """Scan cache directories and return items with real sizes.
 
     Response shape matches TS CleanupItem:
-      {id, name, path, size_bytes, size_display, category, safe, selected, description?}
+      {id, name, path, size, sizeBytes, type, safe, selected, description?}
     """
     results = []
 
@@ -512,7 +512,7 @@ async def execute_cleanup(body: dict):
     """Delete selected cleanup items and return freed bytes.
 
     Accepts both {item_ids: [...]} (frontend) and {ids: [...]} (legacy).
-    Response shape matches TS: {deleted: string[], freed_bytes: int}
+    Response shape matches TS: {success: bool, freedMb: number}
     """
     ids = body.get("item_ids") or body.get("ids", [])
     freed = 0
@@ -581,7 +581,8 @@ async def execute_cleanup(body: dict):
         except Exception:
             continue
 
-    return {"deleted": deleted, "freed_bytes": freed}
+    freed_mb = round(freed / (1024 * 1024), 1)
+    return {"success": len(deleted) > 0, "freedMb": freed_mb}
 
 
 @router.get("/cleanup")
@@ -868,7 +869,7 @@ async def get_optimizations():
     """Check env vars and return optimization status.
 
     Response shape matches TS OptimizationItem:
-      {id, group, name, description, applied, command}
+      {id, title, desc, status, impact, category, howTo?, currentValue?, recommendedValue?}
     """
     results = []
     for opt in OPTIMIZATIONS:
@@ -884,11 +885,14 @@ async def get_optimizations():
         results.append(
             {
                 "id": opt["id"],
-                "group": opt["group"],
-                "name": opt["name"],
-                "description": opt["description"],
-                "applied": applied,
-                "command": opt["command"],
+                "title": opt["name"],
+                "desc": opt["description"],
+                "status": "enabled" if applied else "pending",
+                "impact": "High" if opt["group"] == "GPU" else "Medium",
+                "category": _OPT_GROUP_TO_CATEGORY.get(opt["group"], "system"),
+                "howTo": opt["command"],
+                "currentValue": current_value or "(not set)",
+                "recommendedValue": expected or "(any)",
             }
         )
 

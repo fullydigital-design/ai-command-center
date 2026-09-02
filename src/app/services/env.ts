@@ -43,7 +43,7 @@ export function shouldTryBackend(): boolean {
  * Override with VITE_API_BASE at build time (e.g. VITE_API_BASE=http://host:9000/api).
  */
 export function getApiBase(): string {
-  const fromEnv = (import.meta as any).env?.VITE_API_BASE;
+  const fromEnv = import.meta.env.VITE_API_BASE;
   if (typeof fromEnv === "string" && fromEnv.trim()) {
     return fromEnv.replace(/\/+$/, "");
   }
