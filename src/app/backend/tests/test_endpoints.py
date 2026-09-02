@@ -3,6 +3,11 @@
 # test_endpoints.py — Integration test suite for AI Command Center backend
 # ============================================================
 #
+# NOTE: This file is designed for manual/standalone execution.
+# When running under pytest, it is skipped via pytest.skip() below.
+# Run it directly: python test_endpoints.py
+#
+#
 # Hits every FastAPI endpoint and validates the response shape
 # matches the TypeScript type contracts in src/app/services/types.ts.
 #
@@ -33,6 +38,7 @@ import sys
 import json
 import argparse
 import time
+import pytest
 from typing import Any, Dict, List, Optional, Callable
 from dataclasses import dataclass, field
 
@@ -572,3 +578,6 @@ def main():
 
 if __name__ == "__main__":
     main()
+else:
+    # Skip this file when running under pytest - it requires a live backend
+    pytest.skip("Integration tests require live backend on 127.0.0.1:8000", allow_module_level=True)

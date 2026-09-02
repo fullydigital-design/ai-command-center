@@ -23,7 +23,6 @@ src/app/
     routers/                 ← One file per domain (system, training, services, etc.)
     utils/gpu.py             ← pynvml wrapper (working)
     utils/processes.py       ← psutil helpers + training process scanner (working)
-    utils/bat_runner.py      ← BAT subprocess + SSE streaming (partially stubbed)
 src-tauri/src/lib.rs         ← Tauri commands and sidecar spawn logic
 ```
 
@@ -45,12 +44,24 @@ Tier 3: Mock     →  always works, graceful degradation
 4. Async endpoints only — use `async def` throughout
 5. SSE endpoints use `sse-starlette`'s `EventSourceResponse`
 
-## What is stubbed (remaining work)
+## Implementation status
 
-| File | What's needed |
-|---|---|
-| `routers/training.py` | Enrich process scan results with TOML config parsing + TensorBoard log reading |
-| `utils/bat_runner.py` | Wire subprocess execution with real-time SSE line streaming |
+| Module | Status | Notes |
+|---|---|---|
+| `routers/training.py` | Complete | TOML config parsing + tbparse + path guard |
+| `routers/setup.py` | Complete | BAT subprocess + SSE streaming + process registry |
+| `utils/bat_runner.py` | Deleted | Dead code removed (logic in setup.py) |
+
+## Testing
+
+```bash
+pnpm test           # Vitest unit tests (jsdom environment)
+pnpm vitest run     # Single-pass (CI mode)
+python -m pytest src/app/backend/tests/ -q   # Backend tests
+```
+
+Tests live in `src/**/*.{test,spec}.{ts,tsx}`. Setup file: `src/test/setup.ts`.
+The backend has integration tests in `src/app/backend/tests/` — run with `pytest`.
 
 ## Constraints
 

@@ -60,7 +60,7 @@ Built for setups where you run your own stack and need a single interface to see
 | Layer | Status |
 |---|---|
 | Frontend | Complete — fully functional on mock data |
-| Backend | ~75% — GPU, system, services, AI proxy working; training detection and BAT runner partially stubbed |
+| Backend | Core routers complete (system, training, services, AI proxy, tensorboard, setup); note: live backend E2E coverage not yet added |
 | Desktop | Tauri v2 wrapper scaffolded with sidecar spawning |
 
 The frontend degrades gracefully through three tiers: live backend → direct browser API calls → mock data. It works out of the box without a running backend.

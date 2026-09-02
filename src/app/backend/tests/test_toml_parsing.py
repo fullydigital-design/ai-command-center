@@ -108,7 +108,17 @@ def _validate_dataset_config(config: dict) -> tuple[list[str], list[str], str, s
     return errors, warnings, "musubi", "dataset-config"
 
 
-def test_toml_file(filepath: Path) -> tuple[bool, list[str]]:
+# ============================================================================
+# Pytest compatibility: parametrize over sample configs
+# ============================================================================
+
+import pytest
+
+TEST_CONFIGS = sorted(SAMPLE_DIR.glob("*.toml"))
+
+
+def validate_toml_file(filepath: Path) -> tuple[bool, list[str]]:
+    """Validate one TOML config; shared by the pytest entry and the standalone runner."""
     try:
         with open(filepath, "rb") as f:
             config = tomllib.load(f)
@@ -122,6 +132,13 @@ def test_toml_file(filepath: Path) -> tuple[bool, list[str]]:
 
     messages = errors + warnings + [f"Detected: tool={tool}, type={training_type}"]
     return len(errors) == 0, messages
+
+
+@pytest.mark.parametrize("filepath", TEST_CONFIGS)
+def test_toml_file(filepath: Path):
+    """Every sample config must validate cleanly — this must fail on validation errors."""
+    ok, messages = validate_toml_file(filepath)
+    assert ok, "\n".join(messages)
 
 
 def simulate_job_build(filepath: Path) -> dict:
@@ -220,7 +237,7 @@ def main():
         print("-" * 55)
         print(f"FILE: {filepath.name}")
 
-        ok, messages = test_toml_file(filepath)
+        ok, messages = validate_toml_file(filepath)
         if ok:
             passed += 1
             print("OK: All required fields valid for this config type")
