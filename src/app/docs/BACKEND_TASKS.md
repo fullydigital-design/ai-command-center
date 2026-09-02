@@ -92,8 +92,7 @@ C:\_AI\_test_fresh_all_AI\backend\
 +-- utils/
     +-- __init__.py
     +-- gpu.py               # pynvml wrapper
-    +-- processes.py          # psutil helpers
-    +-- bat_runner.py         # BAT subprocess + SSE streaming
+    +-- processes.py          # psutil helpers + training process scanner
 ```
 
 ---

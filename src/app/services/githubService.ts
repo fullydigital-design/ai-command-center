@@ -277,18 +277,23 @@ interface GitHubApiRepo {
 
 function mapGitHubApiRepo(r: GitHubApiRepo, installed: boolean, trending: boolean): GitHubRepo {
   const topics: string[] = r.topics || [];
+  const starsCount = r.stargazers_count || 0;
+  const forksCount = r.forks_count || 0;
+  const openIssuesCount = r.open_issues_count || 0;
+  const language = r.language || "Unknown";
+  const updatedAt = r.updated_at || r.pushed_at || "";
   return {
     id: String(r.id),
     name: r.name,
     fullName: r.full_name,
     description: r.description || "No description",
-    stars: formatStars(r.stargazers_count),
-    forks: formatStars(r.forks_count),
-    openIssues: r.open_issues_count,
-    language: r.language || "Unknown",
-    languageColor: LANG_COLORS[r.language || ""] || "#888888",
-    lastUpdate: timeAgo(r.updated_at || r.pushed_at),
-    lastCommitMsg: `Latest push: ${timeAgo(r.pushed_at || r.updated_at)}`,
+    stars: formatStars(starsCount),
+    forks: formatStars(forksCount),
+    openIssues: openIssuesCount,
+    language,
+    languageColor: LANG_COLORS[language] || "#888888",
+    lastUpdate: timeAgo(updatedAt),
+    lastCommitMsg: `Latest push: ${timeAgo(updatedAt)}`,
     releaseTag: "",
     category: categorizeRepo(topics, r.name),
     trending,
@@ -297,7 +302,7 @@ function mapGitHubApiRepo(r: GitHubApiRepo, installed: boolean, trending: boolea
     pinned: false,
     topics: topics.slice(0, 6),
     commitsBehind: 0,
-    updatedAtISO: r.updated_at || r.pushed_at || "",
+    updatedAtISO: updatedAt,
   };
 }
 

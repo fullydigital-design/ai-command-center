@@ -223,11 +223,13 @@ interface CivitApiModel {
     rating?: number;
     ratingCount?: number;
   };
+  nsfw?: boolean;
   modelVersions?: Array<{
     id?: number;
     name?: string;
     baseModel?: string;
     trainedWords?: string[];
+    createdAt?: string;
     files?: Array<{
       name?: string;
       sizeKB?: number;
@@ -265,7 +267,7 @@ function mapCivitApiModel(m: CivitApiModel): CivitModel {
     ratingCount: stats.ratingCount || 0,
     downloadCount: formatCount(stats.downloadCount || 0),
     favoriteCount: stats.favoriteCount || 0,
-    buzzScore: stats.favoriteCount * 10 + (stats.downloadCount || 0),
+    buzzScore: (stats.favoriteCount || 0) * 10 + (stats.downloadCount || 0),
     version: latestVersion.name || "v1.0",
     fileSize: mainFile.sizeKB ? formatFileSize(mainFile.sizeKB) : "Unknown",
     precision: mainFile.metadata?.fp || "fp16",

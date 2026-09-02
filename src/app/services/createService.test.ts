@@ -116,7 +116,7 @@ describe('createService', () => {
 
       const service = createService({
         backendPath: '/test',
-        mockData: { transformed: false },
+        mockData: { transformed: false, value: undefined },
         transform: (raw: any) => ({ transformed: true, value: raw.raw }),
         alwaysTryBackend: true,
       });

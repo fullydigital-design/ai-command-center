@@ -443,7 +443,7 @@ async def scan_cleanup():
     """Scan cache directories and return items with real sizes.
 
     Response shape matches TS CleanupItem:
-      {id, name, path, size, sizeBytes, type, safe, selected, description?}
+      {id, name, path, size_bytes, size_display, category, safe, selected, description?}
     """
     results = []
 
@@ -459,9 +459,9 @@ async def scan_cleanup():
                     "id": tid,
                     "name": name,
                     "path": cache_path,
-                    "size": _format_size(int(size_bytes)),
-                    "sizeBytes": int(size_bytes),
-                    "type": "cache",
+                    "size_bytes": int(size_bytes),
+                    "size_display": _format_size(int(size_bytes)),
+                    "category": "cache",
                     "safe": True,
                     "selected": False,
                     "description": description,
@@ -477,9 +477,9 @@ async def scan_cleanup():
                     "id": tid,
                     "name": name,
                     "path": f"{root}/{pattern}",
-                    "size": _format_size(int(size_bytes)),
-                    "sizeBytes": int(size_bytes),
-                    "type": "cache",
+                    "size_bytes": int(size_bytes),
+                    "size_display": _format_size(int(size_bytes)),
+                    "category": "cache",
                     "safe": True,
                     "selected": False,
                     "description": description,
@@ -489,15 +489,15 @@ async def scan_cleanup():
         elif "path" in target:
             p = Path(target["path"])
             size_bytes = _dir_size(p) if p.exists() else 0
-            item_type = "temp" if tid.endswith("temp") else "cache"
+            item_category = "temp" if tid.endswith("temp") else "cache"
             results.append(
                 {
                     "id": tid,
                     "name": name,
                     "path": str(p),
-                    "size": _format_size(int(size_bytes)),
-                    "sizeBytes": int(size_bytes),
-                    "type": item_type,
+                    "size_bytes": int(size_bytes),
+                    "size_display": _format_size(int(size_bytes)),
+                    "category": item_category,
                     "safe": True,
                     "selected": False,
                     "description": description,
@@ -512,7 +512,7 @@ async def execute_cleanup(body: dict):
     """Delete selected cleanup items and return freed bytes.
 
     Accepts both {item_ids: [...]} (frontend) and {ids: [...]} (legacy).
-    Response shape matches TS: {success: bool, freedMb: number}
+    Response shape matches TS: {deleted: string[], freed_bytes: int}
     """
     ids = body.get("item_ids") or body.get("ids", [])
     freed = 0
@@ -581,8 +581,7 @@ async def execute_cleanup(body: dict):
         except Exception:
             continue
 
-    freed_mb = round(freed / (1024 * 1024), 1)
-    return {"success": len(deleted) > 0, "freedMb": freed_mb}
+    return {"deleted": deleted, "freed_bytes": freed}
 
 
 @router.get("/cleanup")
@@ -869,7 +868,7 @@ async def get_optimizations():
     """Check env vars and return optimization status.
 
     Response shape matches TS OptimizationItem:
-      {id, title, desc, status, impact, category, howTo?, currentValue?, recommendedValue?}
+      {id, group, name, description, applied, command}
     """
     results = []
     for opt in OPTIMIZATIONS:
@@ -885,14 +884,11 @@ async def get_optimizations():
         results.append(
             {
                 "id": opt["id"],
-                "title": opt["name"],
-                "desc": opt["description"],
-                "status": "enabled" if applied else "pending",
-                "impact": "High" if opt["group"] == "GPU" else "Medium",
-                "category": _OPT_GROUP_TO_CATEGORY.get(opt["group"], "system"),
-                "howTo": opt["command"],
-                "currentValue": current_value or "(not set)",
-                "recommendedValue": expected or "(any)",
+                "group": opt["group"],
+                "name": opt["name"],
+                "description": opt["description"],
+                "applied": applied,
+                "command": opt["command"],
             }
         )
 
